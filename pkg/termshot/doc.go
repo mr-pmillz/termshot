@@ -18,10 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
-
-import "github.com/mr-pmillz/termshot/internal/cmd"
-
-func main() {
-	cmd.Execute()
-}
+// Package termshot renders ANSI-styled terminal text as PNG images.
+//
+// It produces images that resemble a terminal window, complete with optional
+// window decorations, shadow, and full ANSI color and text style support.
+//
+// Basic usage:
+//
+//	var buf bytes.Buffer
+//	err := termshot.Render(&buf, strings.NewReader("\x1b[32mhello\x1b[0m"))
+//
+// For Word documents at 150 DPI with 7-inch content width:
+//
+//	err := termshot.Render(f, reader,
+//	    termshot.WithColumns(80),
+//	    termshot.WithTargetWidthInches(7.0, 150),
+//	)
+package termshot

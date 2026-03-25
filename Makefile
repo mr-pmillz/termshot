@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-sources := $(wildcard cmd/*/*.go internal/*/*.go)
+sources := $(wildcard cmd/*/*.go internal/*/*.go pkg/*/*.go)
 
 .PHONY: all
 all: test

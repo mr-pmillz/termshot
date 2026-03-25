@@ -31,7 +31,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 
-	. "github.com/homeport/termshot/internal/img"
+	. "github.com/mr-pmillz/termshot/internal/img"
 )
 
 func TestImg(t *testing.T) {
@@ -59,6 +59,9 @@ func (m *LookLikeMatcher) Match(actual interface{}) (bool, error) {
 	if err := scaffold.WritePNG(&out); err != nil {
 		return false, err
 	}
+
+	// Uncomment to regenerate expected outputs
+	// os.WriteFile(m.path, out.Bytes(), 0666)
 
 	reference, err := os.ReadFile(m.path)
 	if err != nil {

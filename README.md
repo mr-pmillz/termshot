@@ -1,11 +1,11 @@
 # termshot
 
-[![License](https://img.shields.io/github/license/homeport/termshot.svg)](https://github.com/homeport/termshot/blob/main/LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/homeport/termshot)](https://goreportcard.com/report/github.com/homeport/termshot)
-[![Tests](https://github.com/homeport/termshot/workflows/Tests/badge.svg)](https://github.com/homeport/termshot/actions?query=workflow%3A%22Tests%22)
-[![Codecov](https://img.shields.io/codecov/c/github/homeport/termshot/main.svg)](https://codecov.io/gh/homeport/termshot)
-[![Go Reference](https://pkg.go.dev/badge/github.com/homeport/termshot.svg)](https://pkg.go.dev/github.com/homeport/termshot)
-[![Release](https://img.shields.io/github/release/homeport/termshot.svg)](https://github.com/homeport/termshot/releases/latest)
+[![License](https://img.shields.io/github/license/mr-pmillz/termshot.svg)](https://github.com/mr-pmillz/termshot/blob/main/LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mr-pmillz/termshot)](https://goreportcard.com/report/github.com/mr-pmillz/termshot)
+[![Tests](https://github.com/mr-pmillz/termshot/workflows/Tests/badge.svg)](https://github.com/mr-pmillz/termshot/actions?query=workflow%3A%22Tests%22)
+[![Codecov](https://img.shields.io/codecov/c/github/mr-pmillz/termshot/main.svg)](https://codecov.io/gh/mr-pmillz/termshot)
+[![Go Reference](https://pkg.go.dev/badge/github.com/mr-pmillz/termshot.svg)](https://pkg.go.dev/github.com/mr-pmillz/termshot)
+[![Release](https://img.shields.io/github/release/mr-pmillz/termshot.svg)](https://github.com/mr-pmillz/termshot/releases/latest)
 
 Generate beautiful screenshots of your terminal, from your terminal.
 
@@ -25,7 +25,7 @@ To install with Homebrew on macOS or Linux:
 brew install homeport/tap/termshot
 ```
 
-See [Releases](https://github.com/homeport/termshot/releases/) for pre-compiled binaries for Darwin and Linux.
+See [Releases](https://github.com/mr-pmillz/termshot/releases/) for pre-compiled binaries for Darwin and Linux.
 
 ## Usage
 

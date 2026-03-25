@@ -1,4 +1,4 @@
-module github.com/homeport/termshot
+module github.com/mr-pmillz/termshot
 
 go 1.25.0
 

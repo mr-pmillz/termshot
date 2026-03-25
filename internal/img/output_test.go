@@ -28,7 +28,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	. "github.com/gonvenience/bunt"
-	. "github.com/homeport/termshot/internal/img"
+	. "github.com/mr-pmillz/termshot/internal/img"
 )
 
 var _ = Describe("Creating images", func() {
@@ -96,6 +96,30 @@ var _ = Describe("Creating images", func() {
 
 			Expect(scaffold.AddContent(strings.NewReader("foobar"))).ToNot(HaveOccurred())
 			Expect(scaffold).To(LookLike(testdata("expected-padding.png")))
+		})
+
+		It("should line up block elements to cells", func() {
+			baseString := `
+				fffffffffff f f f f
+				ffffffffff b b b b b
+				fffffffffff f f f f
+				ffffffffff b b b b b
+				fffffffffff f f f f
+				ffffffffff b b b b b
+				fffffffffff f f f f
+				ffffffffff b b b b b
+			`
+
+			// Allow nicer indentation for baseString
+			baseString = strings.ReplaceAll(baseString, "\t", "")
+			baseString = strings.TrimSpace(baseString)
+
+			baseString = strings.ReplaceAll(baseString, "f", "█")
+			baseString = strings.ReplaceAll(baseString, "b", "\x1b[31;107m┼\x1b[0m")
+
+			scaffold := NewImageCreator()
+			Expect(scaffold.AddContent(bytes.NewBufferString(baseString))).ToNot(HaveOccurred())
+			Expect(scaffold).To(LookLike(testdata("expected-cells.png")))
 		})
 
 		It("should write a PNG stream based on provided input with ANSI sequences", func() {

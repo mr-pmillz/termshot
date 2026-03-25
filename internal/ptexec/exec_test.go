@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	. "github.com/homeport/termshot/internal/ptexec"
+	. "github.com/mr-pmillz/termshot/internal/ptexec"
 )
 
 var _ = Describe("Pseudo Terminal Execute Suite", func() {
@@ -51,6 +51,15 @@ var _ = Describe("Pseudo Terminal Execute Suite", func() {
 			out, err := New().Stdout(GinkgoWriter).Cols(40).Rows(12).Command("stty", "size").Run()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(trimmed(out)).To(Equal("12 40"))
+		})
+
+		It("should not truncate the output", func() {
+			out, err := New().Stdout(GinkgoWriter).
+				Command("for c in a b c d e f g; do printf %s $c; sleep 0.01; done").
+				Run()
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(trimmed(out)).To(Equal("abcdefg"))
 		})
 	})
 })

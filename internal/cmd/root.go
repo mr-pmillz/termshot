@@ -31,8 +31,8 @@ import (
 	"github.com/gonvenience/bunt"
 	"github.com/gonvenience/neat"
 
-	"github.com/homeport/termshot/internal/img"
-	"github.com/homeport/termshot/internal/ptexec"
+	"github.com/mr-pmillz/termshot/internal/img"
+	"github.com/mr-pmillz/termshot/internal/ptexec"
 
 	"github.com/spf13/cobra"
 )

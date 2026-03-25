@@ -18,10 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package termshot_test
 
-import "github.com/mr-pmillz/termshot/internal/cmd"
+import (
+	"testing"
 
-func main() {
-	cmd.Execute()
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+func TestTermshot(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Termshot Library Suite")
 }
