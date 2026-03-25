@@ -73,6 +73,45 @@ tmux capture-pane -e -p | termshot --raw-read - -f screenshot.png
 tmux capture-pane -e -p -t %2 | termshot --raw-read - --columns 120 -f pane2.png
 ```
 
+### Light mode and custom colors
+
+Use `--light` for a light-themed screenshot, or override individual colors:
+
+```sh
+# Light mode
+termshot --light -- ls -la
+
+# Custom background and foreground
+termshot --bg-color="#002B36" --fg-color="#839496" -- ls -la
+
+# Nerd Font for icon/glyph support
+termshot --nerd-font -- ls -la
+```
+
+### Pentesting: highlight the command with a red box
+
+Use `--highlight-cmd` with `--show-cmd` to draw a red box around the command line. This is standard practice in penetration testing reports:
+
+```sh
+# Live capture with highlighted command
+termshot --light -c --highlight-cmd -- nmap -sV 10.10.10.1
+
+# After-the-fact: screenshot saved output without re-running the command
+nmap -sV 10.10.10.1 > /tmp/nmap-output.txt 2>&1
+termshot --light -c --highlight-cmd \
+  --raw-read /tmp/nmap-output.txt \
+  -f nmap-screenshot.png \
+  -- nmap -sV 10.10.10.1
+```
+
+In the after-the-fact workflow, `--raw-read` provides the content and the args after `--` are used only as display text — the command is **not** re-executed.
+
+Use `--highlight-color` to override the box color:
+
+```sh
+termshot -c --highlight-cmd --highlight-color="#FFA500" -- nuclei -t cves/ -u target
+```
+
 ## CLI Flags
 
 ### Appearance
@@ -86,6 +125,17 @@ tmux capture-pane -e -p -t %2 | termshot --raw-read - --columns 120 -f pane2.png
 | `--no-decoration` | | `false` | Hide window buttons |
 | `--no-shadow` | | `false` | Hide window shadow |
 | `--clip-canvas` | `-s` | `false` | Remove transparent margins |
+
+### Theme & Colors
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--light` | `-l` | `false` | Light color theme |
+| `--bg-color` | | | Override background color (hex, e.g. `#FFFFFF`) |
+| `--fg-color` | | | Override foreground/text color (hex, e.g. `#333333`) |
+| `--nerd-font` | | `false` | Use ZedMono Nerd Font (broader glyph/icon support) |
+| `--highlight-cmd` | | `false` | Draw a box around the command (use with `-c`) |
+| `--highlight-color` | | `#FF0000` | Override highlight box color |
 
 ### Output
 
@@ -139,6 +189,50 @@ func main() {
 }
 ```
 
+### Run a command and screenshot with highlighted prompt
+
+`RenderCommand` runs a command, captures its output, and renders a screenshot in one call. The command is executed once via `sh -c` and is never re-run. This is the easiest way to integrate termshot into Go programs like pentesting tools or CI/CD pipelines:
+
+```go
+package main
+
+import (
+    "os"
+
+    "github.com/mr-pmillz/termshot/pkg/termshot"
+)
+
+func main() {
+    f, _ := os.Create("nmap-screenshot.png")
+    defer f.Close()
+
+    termshot.RenderCommand(f, "nmap -sV 10.10.10.1",
+        termshot.WithLightMode(),
+        termshot.WithHighlightCommand(true),  // red box around command
+        termshot.WithColumns(120),
+    )
+}
+```
+
+### Screenshot saved output after the fact
+
+When you've already captured command output (e.g. from a pipeline), use `Render` with `WithCommand` to add the command display text without re-executing it:
+
+```go
+// output was captured earlier, command is NOT re-run
+output, _ := os.ReadFile("/tmp/nuclei-results.txt")
+
+f, _ := os.Create("nuclei-screenshot.png")
+defer f.Close()
+
+termshot.Render(f, bytes.NewReader(output),
+    termshot.WithCommand("nuclei", "-t", "cves/", "-u", "target"),
+    termshot.WithHighlightCommand(true),
+    termshot.WithLightMode(),
+    termshot.WithColumns(120),
+)
+```
+
 ### Sized for Word documents
 
 Generate images that fit a 7-inch content width in Microsoft Word:
@@ -182,6 +276,12 @@ termshot.Render(f, nil,
 | `WithShadow(bool)` | Window shadow (default: true) |
 | `WithClipCanvas(bool)` | Remove transparent edges (default: false) |
 | `WithCommand(args...)` | Prepend styled command prompt |
+| `WithHighlightCommand(bool)` | Draw a colored box around the command |
+| `WithHighlightColor(hex)` | Override highlight box color (default: `#FF0000`) |
+| `WithLightMode()` | Light color theme |
+| `WithBackgroundColor(hex)` | Override background color |
+| `WithForegroundColor(hex)` | Override text color |
+| `WithNerdFont()` | Use ZedMono Nerd Font |
 | `WithTmux()` | Capture current tmux pane (reader is ignored) |
 | `WithTmuxPane(target)` | Capture specific tmux pane |
 

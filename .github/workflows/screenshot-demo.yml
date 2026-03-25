@@ -118,6 +118,80 @@ jobs:
         ./termshot -c --nerd-font -f /tmp/screenshots/21-dark-nerd-show-cmd.png \
           -- ls -la --color=always
 
+        # --- 8. Pentest-style: command highlight with red box ---
+        ./termshot -c --highlight-cmd \
+          -f /tmp/screenshots/25-dark-highlight-cmd.png \
+          -- ls -la --color=always
+
+        ./termshot --light -c --highlight-cmd \
+          -f /tmp/screenshots/26-light-highlight-cmd.png \
+          -- ls -la --color=always
+
+        ./termshot --light -c --highlight-cmd --nerd-font \
+          -f /tmp/screenshots/27-light-highlight-nerd.png \
+          -- ls -la --color=always
+
+        # Custom green highlight box
+        ./termshot -c --highlight-cmd --highlight-color="#00FF00" \
+          -f /tmp/screenshots/28-dark-highlight-green.png \
+          -- ls -la --color=always
+
+        # Highlight on solarized dark
+        ./termshot -c --highlight-cmd \
+          --bg-color="#002B36" --fg-color="#839496" \
+          -f /tmp/screenshots/29-solarized-highlight.png \
+          -- ls -la --color=always
+
+    - name: After-the-fact screenshots (raw-read + highlight)
+      run: |
+        # Simulate pentesting workflow: run command, save output, screenshot later
+        # The command is NOT re-executed — only the saved output is used.
+
+        # Step 1: Run the "pentest" command and save output
+        ls -la --color=always > /tmp/pentest-output.txt 2>&1 || true
+        sleep 1
+
+        # Step 2: Screenshot the saved output with the command highlighted
+        # The args after -- are display-only text, not re-executed
+        ./termshot --light -c --highlight-cmd \
+          --raw-read /tmp/pentest-output.txt \
+          -f /tmp/screenshots/30-afterfact-light-highlight.png \
+          -- ls -la --color=always
+
+        ./termshot -c --highlight-cmd \
+          --raw-read /tmp/pentest-output.txt \
+          -f /tmp/screenshots/31-afterfact-dark-highlight.png \
+          -- ls -la --color=always
+
+        # Nerd font + highlight after the fact
+        ./termshot --light -c --highlight-cmd --nerd-font \
+          --raw-read /tmp/pentest-output.txt \
+          -f /tmp/screenshots/32-afterfact-light-nerd-highlight.png \
+          -- ls -la --color=always
+
+        # Custom highlight color after the fact
+        ./termshot --light -c --highlight-cmd --highlight-color="#FFA500" \
+          --raw-read /tmp/pentest-output.txt \
+          -f /tmp/screenshots/33-afterfact-light-orange-highlight.png \
+          -- ls -la --color=always
+
+        # Simulate a different tool (display text only, output from file)
+        echo "Starting Nmap 7.94 ( https://nmap.org )" > /tmp/nmap-output.txt
+        echo "Nmap scan report for 10.10.10.1" >> /tmp/nmap-output.txt
+        echo "PORT   STATE SERVICE VERSION" >> /tmp/nmap-output.txt
+        echo "22/tcp open  ssh     OpenSSH 8.9" >> /tmp/nmap-output.txt
+        echo "80/tcp open  http    Apache 2.4.52" >> /tmp/nmap-output.txt
+
+        ./termshot --light -c --highlight-cmd \
+          --raw-read /tmp/nmap-output.txt \
+          -f /tmp/screenshots/34-afterfact-nmap-light.png \
+          -- nmap -sV 10.10.10.1
+
+        ./termshot -c --highlight-cmd \
+          --raw-read /tmp/nmap-output.txt \
+          -f /tmp/screenshots/35-afterfact-nmap-dark.png \
+          -- nmap -sV 10.10.10.1
+
     - name: Capture full build log screenshot
       run: |
         # Replay the build+screenshot step output as a combined log

@@ -99,6 +99,10 @@ type Scaffold struct {
 	boldItalic imgfont.Face
 
 	tabSpaces int
+
+	commandLineCount int
+	highlightCommand bool
+	highlightColor   string
 }
 
 func NewImageCreator() Scaffold {
@@ -222,13 +226,32 @@ func (s *Scaffold) GetFixedColumns() int {
 }
 
 func (s *Scaffold) AddCommand(args ...string) error {
-	return s.AddContent(strings.NewReader(
+	before := len(s.content)
+	err := s.AddContent(strings.NewReader(
 		bunt.Sprintf("Lime{%s} DimGray{%s}\n",
 			commandIndicator,
 			strings.Join(args, " "),
 		),
 	))
+	if err != nil {
+		return err
+	}
+
+	for _, cr := range s.content[before:] {
+		if cr.Symbol == '\n' {
+			s.commandLineCount++
+		}
+	}
+
+	return nil
 }
+
+// HighlightCommand enables drawing a colored box around the command line(s).
+// Use with AddCommand / --show-cmd. Default color is red (#FF0000).
+func (s *Scaffold) HighlightCommand(enabled bool) { s.highlightCommand = enabled }
+
+// SetHighlightColor overrides the highlight box color (default #FF0000).
+func (s *Scaffold) SetHighlightColor(hex string) { s.highlightColor = hex }
 
 func (s *Scaffold) AddContent(in io.Reader) error {
 	parsed, err := bunt.ParseStream(in)
@@ -446,6 +469,24 @@ func (s *Scaffold) image() (image.Image, error) {
 		}
 
 		x += w
+	}
+
+	// Optional: Draw a highlight box around the command line(s)
+	if s.highlightCommand && s.commandLineCount > 0 {
+		boxColor := s.highlightColor
+		if boxColor == "" {
+			boxColor = "#FF0000"
+		}
+		boxPad := f(4)
+		boxX := xOffset + paddingX - boxPad
+		boxY := yOffset + paddingY + titleOffset - boxPad
+		boxW := contentWidth + 2*boxPad
+		boxH := float64(s.commandLineCount)*h + 2*boxPad
+
+		dc.SetHexColor(boxColor)
+		dc.SetLineWidth(f(2))
+		dc.DrawRoundedRectangle(boxX, boxY, boxW, boxH, f(3))
+		dc.Stroke()
 	}
 
 	return dc.Image(), nil

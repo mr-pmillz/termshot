@@ -46,10 +46,12 @@ type config struct {
 	command     []string
 	tmux        bool
 	tmuxPane    string
-	light       bool
-	bgColor     *string
-	fgColor     *string
-	nerdFont    bool
+	light            bool
+	bgColor          *string
+	fgColor          *string
+	nerdFont         bool
+	highlightCommand *bool
+	highlightColor   *string
 }
 
 // Render reads ANSI-styled terminal text from r and writes a styled PNG
@@ -106,6 +108,13 @@ func Render(w io.Writer, r io.Reader, opts ...Option) error {
 		scaffold.ClipCanvas(*cfg.clipCanvas)
 	}
 
+	if cfg.highlightCommand != nil {
+		scaffold.HighlightCommand(*cfg.highlightCommand)
+	}
+	if cfg.highlightColor != nil {
+		scaffold.SetHighlightColor(*cfg.highlightColor)
+	}
+
 	if len(cfg.command) > 0 {
 		if err := scaffold.AddCommand(cfg.command...); err != nil {
 			return fmt.Errorf("failed to add command: %w", err)
@@ -146,6 +155,30 @@ func Render(w io.Writer, r io.Reader, opts ...Option) error {
 	}
 
 	return scaffold.WritePNG(w)
+}
+
+// RenderCommand runs a command in a shell, captures its output, and writes
+// a styled PNG screenshot to w. The command is executed once via "sh -c".
+// The command text is displayed as a prompt line in the screenshot and can
+// optionally be highlighted with a colored box (useful for pentesting reports).
+//
+// This is a convenience wrapper around Render that handles the
+// run-then-screenshot workflow in a single call.
+func RenderCommand(w io.Writer, command string, opts ...Option) error {
+	out, err := exec.Command("sh", "-c", command).CombinedOutput() // #nosec G204
+	if err != nil {
+		// Command may have failed but still produced output (e.g. nmap
+		// returning non-zero). Only fail if there's no output at all.
+		if len(out) == 0 {
+			return fmt.Errorf("command %q failed with no output: %w", command, err)
+		}
+	}
+
+	// Split the command string into args for display
+	args := strings.Fields(command)
+	opts = append([]Option{WithCommand(args...)}, opts...)
+
+	return Render(w, bytes.NewReader(out), opts...)
 }
 
 func captureTmux(target string) ([]byte, error) {

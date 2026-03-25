@@ -115,3 +115,14 @@ func WithForegroundColor(hex string) Option {
 func WithNerdFont() Option {
 	return func(c *config) { c.nerdFont = true }
 }
+
+// WithHighlightCommand draws a colored box around the command line(s) added
+// via WithCommand. Useful for pentesting reports. Default color is red (#FF0000).
+func WithHighlightCommand(enabled bool) Option {
+	return func(c *config) { c.highlightCommand = &enabled }
+}
+
+// WithHighlightColor overrides the highlight box color (default #FF0000).
+func WithHighlightColor(hex string) Option {
+	return func(c *config) { c.highlightColor = &hex }
+}

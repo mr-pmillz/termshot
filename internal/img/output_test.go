@@ -198,6 +198,54 @@ var _ = Describe("Creating images", func() {
 		})
 	})
 
+	Context("Use scaffold with command highlight", func() {
+		BeforeEach(func() {
+			SetColorSettings(ON, ON)
+		})
+
+		It("should draw a red box around the command", func() {
+			scaffold := NewImageCreator()
+			scaffold.HighlightCommand(true)
+			Expect(scaffold.AddCommand("echo", "foobar")).To(Succeed())
+			Expect(scaffold.AddContent(strings.NewReader("foobar"))).To(Succeed())
+			Expect(scaffold).To(LookLike(testdata("expected-show-cmd-highlight.png")))
+		})
+
+		It("should draw a box with custom color", func() {
+			scaffold := NewImageCreator()
+			scaffold.HighlightCommand(true)
+			scaffold.SetHighlightColor("#00FF00")
+			Expect(scaffold.AddCommand("ls", "-la")).To(Succeed())
+			Expect(scaffold.AddContent(strings.NewReader("total 0"))).To(Succeed())
+
+			var buf bytes.Buffer
+			Expect(scaffold.WritePNG(&buf)).To(Succeed())
+			Expect(buf.Len()).To(BeNumerically(">", 0))
+
+			_, err := png.Decode(bytes.NewReader(buf.Bytes()))
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should not crash when highlight is enabled without a command", func() {
+			scaffold := NewImageCreator()
+			scaffold.HighlightCommand(true)
+			Expect(scaffold.AddContent(strings.NewReader("no command here"))).To(Succeed())
+
+			var buf bytes.Buffer
+			Expect(scaffold.WritePNG(&buf)).To(Succeed())
+			Expect(buf.Len()).To(BeNumerically(">", 0))
+		})
+
+		It("should draw a red box on light theme", func() {
+			scaffold := NewImageCreator()
+			scaffold.SetTheme(LightTheme)
+			scaffold.HighlightCommand(true)
+			Expect(scaffold.AddCommand("nmap", "-sV", "target")).To(Succeed())
+			Expect(scaffold.AddContent(strings.NewReader("Starting Nmap..."))).To(Succeed())
+			Expect(scaffold).To(LookLike(testdata("expected-show-cmd-highlight-light.png")))
+		})
+	})
+
 	Context("Column reporting", func() {
 		BeforeEach(func() {
 			SetColorSettings(ON, ON)

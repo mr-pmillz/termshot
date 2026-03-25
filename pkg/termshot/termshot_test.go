@@ -423,6 +423,67 @@ var _ = Describe("Termshot Library", func() {
 		})
 	})
 
+	Context("Command highlight options", func() {
+		It("should render with highlighted command", func() {
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, strings.NewReader("output line"),
+				termshot.WithCommand("ls", "-la"),
+				termshot.WithHighlightCommand(true),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+
+		It("should render with custom highlight color", func() {
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, strings.NewReader("output"),
+				termshot.WithCommand("nmap", "-sV"),
+				termshot.WithHighlightCommand(true),
+				termshot.WithHighlightColor("#00FF00"),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+	})
+
+	Context("RenderCommand helper", func() {
+		It("should run a command and render with highlighted prompt", func() {
+			var buf bytes.Buffer
+			err := termshot.RenderCommand(&buf, "echo hello world",
+				termshot.WithHighlightCommand(true),
+				termshot.WithLightMode(),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+
+		It("should render without highlight", func() {
+			var buf bytes.Buffer
+			err := termshot.RenderCommand(&buf, "echo test")
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+
+		It("should fail for a command with no output", func() {
+			var buf bytes.Buffer
+			err := termshot.RenderCommand(&buf, "false")
+			// 'false' produces no output and exits 1
+			Expect(err).To(HaveOccurred())
+		})
+	})
+
 	Context("Word document use case", func() {
 		It("should render at 96 DPI for screen display in Word", func() {
 			var buf bytes.Buffer

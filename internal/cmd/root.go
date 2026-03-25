@@ -101,6 +101,12 @@ window including all terminal colors and text decorations.
 		if nerdFont, _ := cmd.Flags().GetBool("nerd-font"); nerdFont {
 			scaffold.SetFont(img.FontNerd)
 		}
+		if val, _ := cmd.Flags().GetBool("highlight-cmd"); val {
+			scaffold.HighlightCommand(true)
+		}
+		if hex, _ := cmd.Flags().GetString("highlight-color"); hex != "" {
+			scaffold.SetHighlightColor(hex)
+		}
 
 		// Initialise scaffold with a column sizing so that the
 		// content can be wrapped accordingly
@@ -144,9 +150,11 @@ window including all terminal colors and text decorations.
 			scaffold.ClipCanvas(val)
 		}
 
-		// Optional: Prepend command line arguments to output content
+		// Optional: Prepend command line arguments to output content.
+		// When combined with --raw-read, the args after -- are used only
+		// as display text (the command is not re-executed).
 		//
-		if includeCommand, err := cmd.Flags().GetBool("show-cmd"); err == nil && includeCommand && rawRead == "" {
+		if includeCommand, err := cmd.Flags().GetBool("show-cmd"); err == nil && includeCommand {
 			if err := scaffold.AddCommand(args...); err != nil {
 				return err
 			}
@@ -354,6 +362,8 @@ func init() {
 	rootCmd.Flags().String("bg-color", "", "override background color (hex, e.g. #FFFFFF)")
 	rootCmd.Flags().String("fg-color", "", "override foreground/text color (hex, e.g. #333333)")
 	rootCmd.Flags().Bool("nerd-font", false, "use ZedMono Nerd Font (broader glyph/icon support)")
+	rootCmd.Flags().Bool("highlight-cmd", false, "draw a box around the command line (use with --show-cmd)")
+	rootCmd.Flags().String("highlight-color", "", "override highlight box color (hex, default #FF0000)")
 
 	// flags for output related settings
 	rootCmd.Flags().StringP("filename", "f", "out.png", "filename of the screenshot")
