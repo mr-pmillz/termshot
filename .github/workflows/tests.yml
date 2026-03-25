@@ -27,12 +27,3 @@ jobs:
     - name: Test
       run: make test
 
-    - name: Upload Code Coverage Profile
-      uses: codecov/codecov-action@v5
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      with:
-        files: unit.coverprofile
-        flags: unittests
-        fail_ci_if_error: true
-        verbose: false

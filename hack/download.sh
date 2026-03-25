@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-ORG="${ORG:-homeport}"
+ORG="${ORG:-mr-pmillz}"
 REPO="${REPO:-termshot}"
 
 if ! hash curl 2>/dev/null; then
