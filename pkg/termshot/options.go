@@ -126,3 +126,9 @@ func WithHighlightCommand(enabled bool) Option {
 func WithHighlightColor(hex string) Option {
 	return func(c *config) { c.highlightColor = &hex }
 }
+
+// WithHighlightTight fits the highlight box tightly around the command text
+// instead of spanning the full content width.
+func WithHighlightTight(enabled bool) Option {
+	return func(c *config) { c.highlightTight = &enabled }
+}

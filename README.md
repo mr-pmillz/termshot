@@ -106,6 +106,16 @@ termshot --light -c --highlight-cmd \
 
 In the after-the-fact workflow, `--raw-read` provides the content and the args after `--` are used only as display text — the command is **not** re-executed.
 
+Use `--highlight-tight` to fit the box snugly around the command text instead of spanning the full width:
+
+```sh
+# Tight box — ends where the command text ends
+termshot --light -c --highlight-cmd --highlight-tight -- nmap -sV 10.10.10.1
+
+# Full-width box (default)
+termshot --light -c --highlight-cmd -- nmap -sV 10.10.10.1
+```
+
 Use `--highlight-color` to override the box color:
 
 ```sh
@@ -135,6 +145,7 @@ termshot -c --highlight-cmd --highlight-color="#FFA500" -- nuclei -t cves/ -u ta
 | `--fg-color` | | | Override foreground/text color (hex, e.g. `#333333`) |
 | `--nerd-font` | | `false` | Use ZedMono Nerd Font (broader glyph/icon support) |
 | `--highlight-cmd` | | `false` | Draw a box around the command (use with `-c`) |
+| `--highlight-tight` | | `false` | Fit the highlight box tightly around the command text |
 | `--highlight-color` | | `#FF0000` | Override highlight box color |
 
 ### Output
@@ -209,6 +220,7 @@ func main() {
     termshot.RenderCommand(f, "nmap -sV 10.10.10.1",
         termshot.WithLightMode(),
         termshot.WithHighlightCommand(true),  // red box around command
+        termshot.WithHighlightTight(true),    // box fits the command text
         termshot.WithColumns(120),
     )
 }
@@ -277,6 +289,7 @@ termshot.Render(f, nil,
 | `WithClipCanvas(bool)` | Remove transparent edges (default: false) |
 | `WithCommand(args...)` | Prepend styled command prompt |
 | `WithHighlightCommand(bool)` | Draw a colored box around the command |
+| `WithHighlightTight(bool)` | Fit the highlight box tightly around the command text |
 | `WithHighlightColor(hex)` | Override highlight box color (default: `#FF0000`) |
 | `WithLightMode()` | Light color theme |
 | `WithBackgroundColor(hex)` | Override background color |

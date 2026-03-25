@@ -52,6 +52,7 @@ type config struct {
 	nerdFont         bool
 	highlightCommand *bool
 	highlightColor   *string
+	highlightTight   *bool
 }
 
 // Render reads ANSI-styled terminal text from r and writes a styled PNG
@@ -113,6 +114,9 @@ func Render(w io.Writer, r io.Reader, opts ...Option) error {
 	}
 	if cfg.highlightColor != nil {
 		scaffold.SetHighlightColor(*cfg.highlightColor)
+	}
+	if cfg.highlightTight != nil {
+		scaffold.HighlightTight(*cfg.highlightTight)
 	}
 
 	if len(cfg.command) > 0 {

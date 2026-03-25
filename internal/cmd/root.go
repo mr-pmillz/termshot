@@ -107,6 +107,9 @@ window including all terminal colors and text decorations.
 		if hex, _ := cmd.Flags().GetString("highlight-color"); hex != "" {
 			scaffold.SetHighlightColor(hex)
 		}
+		if val, _ := cmd.Flags().GetBool("highlight-tight"); val {
+			scaffold.HighlightTight(true)
+		}
 
 		// Initialise scaffold with a column sizing so that the
 		// content can be wrapped accordingly
@@ -364,6 +367,7 @@ func init() {
 	rootCmd.Flags().Bool("nerd-font", false, "use ZedMono Nerd Font (broader glyph/icon support)")
 	rootCmd.Flags().Bool("highlight-cmd", false, "draw a box around the command line (use with --show-cmd)")
 	rootCmd.Flags().String("highlight-color", "", "override highlight box color (hex, default #FF0000)")
+	rootCmd.Flags().Bool("highlight-tight", false, "fit the highlight box tightly around the command text")
 
 	// flags for output related settings
 	rootCmd.Flags().StringP("filename", "f", "out.png", "filename of the screenshot")

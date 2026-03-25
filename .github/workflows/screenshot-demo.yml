@@ -192,6 +192,54 @@ jobs:
           -f /tmp/screenshots/35-afterfact-nmap-dark.png \
           -- nmap -sV 10.10.10.1
 
+    - name: Tight highlight box screenshots
+      run: |
+        # --- Tight highlight: box ends where the command text ends ---
+
+        # Tight vs full-width comparison (light mode)
+        ./termshot --light -c --highlight-cmd --highlight-tight \
+          -f /tmp/screenshots/36-light-highlight-tight.png \
+          -- ls -la --color=always
+
+        # Tight on dark mode
+        ./termshot -c --highlight-cmd --highlight-tight \
+          -f /tmp/screenshots/37-dark-highlight-tight.png \
+          -- ls -la --color=always
+
+        # Tight with nerd font
+        ./termshot --light -c --highlight-cmd --highlight-tight --nerd-font \
+          -f /tmp/screenshots/38-light-highlight-tight-nerd.png \
+          -- ls -la --color=always
+
+        # Tight with custom color
+        ./termshot --light -c --highlight-cmd --highlight-tight \
+          --highlight-color="#FFA500" \
+          -f /tmp/screenshots/39-light-highlight-tight-orange.png \
+          -- ls -la --color=always
+
+        # Tight after-the-fact with simulated nmap
+        echo "Starting Nmap 7.94 ( https://nmap.org )" > /tmp/nmap-tight.txt
+        echo "Nmap scan report for 10.10.10.1" >> /tmp/nmap-tight.txt
+        echo "PORT   STATE SERVICE VERSION" >> /tmp/nmap-tight.txt
+        echo "22/tcp open  ssh     OpenSSH 8.9" >> /tmp/nmap-tight.txt
+        echo "80/tcp open  http    Apache 2.4.52" >> /tmp/nmap-tight.txt
+
+        ./termshot --light -c --highlight-cmd --highlight-tight \
+          --raw-read /tmp/nmap-tight.txt \
+          -f /tmp/screenshots/40-afterfact-nmap-tight-light.png \
+          -- nmap -sV 10.10.10.1
+
+        ./termshot -c --highlight-cmd --highlight-tight \
+          --raw-read /tmp/nmap-tight.txt \
+          -f /tmp/screenshots/41-afterfact-nmap-tight-dark.png \
+          -- nmap -sV 10.10.10.1
+
+        # Tight on solarized dark
+        ./termshot -c --highlight-cmd --highlight-tight \
+          --bg-color="#002B36" --fg-color="#839496" \
+          -f /tmp/screenshots/42-solarized-highlight-tight.png \
+          -- ls -la --color=always
+
     - name: Capture full build log screenshot
       run: |
         # Replay the build+screenshot step output as a combined log

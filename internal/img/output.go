@@ -101,8 +101,10 @@ type Scaffold struct {
 	tabSpaces int
 
 	commandLineCount int
+	commandMaxCols   int
 	highlightCommand bool
 	highlightColor   string
+	highlightTight   bool
 }
 
 func NewImageCreator() Scaffold {
@@ -237,10 +239,20 @@ func (s *Scaffold) AddCommand(args ...string) error {
 		return err
 	}
 
+	var lineCols int
 	for _, cr := range s.content[before:] {
 		if cr.Symbol == '\n' {
 			s.commandLineCount++
+			if lineCols > s.commandMaxCols {
+				s.commandMaxCols = lineCols
+			}
+			lineCols = 0
+		} else {
+			lineCols++
 		}
+	}
+	if lineCols > s.commandMaxCols {
+		s.commandMaxCols = lineCols
 	}
 
 	return nil
@@ -252,6 +264,10 @@ func (s *Scaffold) HighlightCommand(enabled bool) { s.highlightCommand = enabled
 
 // SetHighlightColor overrides the highlight box color (default #FF0000).
 func (s *Scaffold) SetHighlightColor(hex string) { s.highlightColor = hex }
+
+// HighlightTight makes the highlight box fit tightly around the command text
+// instead of spanning the full content width.
+func (s *Scaffold) HighlightTight(enabled bool) { s.highlightTight = enabled }
 
 func (s *Scaffold) AddContent(in io.Reader) error {
 	parsed, err := bunt.ParseStream(in)
@@ -481,6 +497,9 @@ func (s *Scaffold) image() (image.Image, error) {
 		boxX := xOffset + paddingX - boxPad
 		boxY := yOffset + paddingY + titleOffset - boxPad
 		boxW := contentWidth + 2*boxPad
+		if s.highlightTight && s.commandMaxCols > 0 {
+			boxW = float64(s.commandMaxCols)*w + 2*boxPad
+		}
 		boxH := float64(s.commandLineCount)*h + 2*boxPad
 
 		dc.SetHexColor(boxColor)
