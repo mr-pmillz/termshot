@@ -46,6 +46,10 @@ type config struct {
 	command     []string
 	tmux        bool
 	tmuxPane    string
+	light       bool
+	bgColor     *string
+	fgColor     *string
+	nerdFont    bool
 }
 
 // Render reads ANSI-styled terminal text from r and writes a styled PNG
@@ -57,6 +61,20 @@ func Render(w io.Writer, r io.Reader, opts ...Option) error {
 	}
 
 	scaffold := img.NewImageCreator()
+
+	// Apply theme and color overrides (theme first, then overrides)
+	if cfg.light {
+		scaffold.SetTheme(img.LightTheme)
+	}
+	if cfg.bgColor != nil {
+		scaffold.SetBackgroundColor(*cfg.bgColor)
+	}
+	if cfg.fgColor != nil {
+		scaffold.SetForegroundColorHex(*cfg.fgColor)
+	}
+	if cfg.nerdFont {
+		scaffold.SetFont(img.FontNerd)
+	}
 
 	if cfg.columns > 0 {
 		scaffold.SetColumns(cfg.columns)
@@ -120,6 +138,8 @@ func Render(w io.Writer, r io.Reader, opts ...Option) error {
 	if err := scaffold.AddContent(content); err != nil {
 		return fmt.Errorf("failed to add content: %w", err)
 	}
+
+	fmt.Fprintf(os.Stderr, "Number of columns used: %d. Use WithColumns() or '--columns' to impose it.\n", scaffold.ColumnsUsed())
 
 	if cfg.targetWidth > 0 {
 		return renderScaled(w, &scaffold, cfg.targetWidth)

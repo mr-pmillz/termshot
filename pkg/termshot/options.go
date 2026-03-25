@@ -92,3 +92,26 @@ func WithTmux() Option {
 func WithTmuxPane(target string) Option {
 	return func(c *config) { c.tmux = true; c.tmuxPane = target }
 }
+
+// WithLightMode enables the light color theme (light background, dark text).
+func WithLightMode() Option {
+	return func(c *config) { c.light = true }
+}
+
+// WithBackgroundColor overrides the window background color. Value must be
+// a CSS-style hex color (e.g. "#FFFFFF"). Takes precedence over theme.
+func WithBackgroundColor(hex string) Option {
+	return func(c *config) { c.bgColor = &hex }
+}
+
+// WithForegroundColor overrides the default text color. Value must be
+// a CSS-style hex color (e.g. "#1E1E1E"). Takes precedence over theme.
+func WithForegroundColor(hex string) Option {
+	return func(c *config) { c.fgColor = &hex }
+}
+
+// WithNerdFont uses ZedMono Nerd Font for broader glyph and icon support
+// instead of the default Hack font.
+func WithNerdFont() Option {
+	return func(c *config) { c.nerdFont = true }
+}

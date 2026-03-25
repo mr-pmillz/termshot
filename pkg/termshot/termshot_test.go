@@ -359,6 +359,70 @@ var _ = Describe("Termshot Library", func() {
 		})
 	})
 
+	Context("Theme and color options", func() {
+		It("should render with light mode", func() {
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, strings.NewReader("light mode test"),
+				termshot.WithLightMode(),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+
+		It("should render with custom background color", func() {
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, strings.NewReader("custom bg"),
+				termshot.WithBackgroundColor("#FFFFFF"),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+
+		It("should render with custom foreground color", func() {
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, strings.NewReader("custom fg"),
+				termshot.WithForegroundColor("#000000"),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+
+		It("should render with nerd font", func() {
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, strings.NewReader("nerd font test"),
+				termshot.WithNerdFont(),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+
+		It("should combine light mode with custom colors", func() {
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, strings.NewReader("combined"),
+				termshot.WithLightMode(),
+				termshot.WithBackgroundColor("#FFFFF0"),
+				termshot.WithForegroundColor("#333333"),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+	})
+
 	Context("Word document use case", func() {
 		It("should render at 96 DPI for screen display in Word", func() {
 			var buf bytes.Buffer

@@ -60,6 +60,16 @@ var commandIndicator = func() string {
 	return "➜"
 }()
 
+// FontFamily selects which embedded font to use for rendering.
+type FontFamily int
+
+const (
+	// FontHack uses the default Hack font (embedded via gonvenience/font).
+	FontHack FontFamily = iota
+	// FontNerd uses the ZedMono Nerd Font for broader glyph/icon support.
+	FontNerd
+)
+
 type Scaffold struct {
 	content bunt.String
 
@@ -67,17 +77,18 @@ type Scaffold struct {
 
 	columns int
 
-	defaultForegroundColor color.Color
+	theme           Theme
+	bgColorOverride *string
+	fgColorOverride *color.Color
 
 	clipCanvas bool
 
 	drawDecorations bool
 	drawShadow      bool
 
-	shadowBaseColor string
-	shadowRadius    uint8
-	shadowOffsetX   float64
-	shadowOffsetY   float64
+	shadowRadius  uint8
+	shadowOffsetX float64
+	shadowOffsetY float64
 
 	padding float64
 	margin  float64
@@ -99,7 +110,7 @@ func NewImageCreator() Scaffold {
 	}
 
 	return Scaffold{
-		defaultForegroundColor: bunt.LightGray,
+		theme: DarkTheme,
 
 		factor: f,
 
@@ -109,10 +120,9 @@ func NewImageCreator() Scaffold {
 		drawDecorations: true,
 		drawShadow:      true,
 
-		shadowBaseColor: "#10101066",
-		shadowRadius:    uint8(math.Min(f*16, 255)),
-		shadowOffsetX:   f * 16,
-		shadowOffsetY:   f * 16,
+		shadowRadius:  uint8(math.Min(f*16, 255)),
+		shadowOffsetX: f * 16,
+		shadowOffsetY: f * 16,
 
 		regular:    font.Hack.Regular(fontFaceOptions),
 		bold:       font.Hack.Bold(fontFaceOptions),
@@ -130,6 +140,65 @@ func (s *Scaffold) SetFontFaceBold(face imgfont.Face) { s.bold = face }
 func (s *Scaffold) SetFontFaceItalic(face imgfont.Face) { s.italic = face }
 
 func (s *Scaffold) SetFontFaceBoldItalic(face imgfont.Face) { s.boldItalic = face }
+
+// SetTheme sets the color theme for rendering.
+func (s *Scaffold) SetTheme(t Theme) { s.theme = t }
+
+// SetBackgroundColor overrides the window background color from the active theme.
+func (s *Scaffold) SetBackgroundColor(hex string) { s.bgColorOverride = &hex }
+
+// SetForegroundColorHex overrides the default text color from the active theme.
+func (s *Scaffold) SetForegroundColorHex(hex string) {
+	c, err := ParseHexColor(hex)
+	if err != nil {
+		return
+	}
+	s.fgColorOverride = &[]color.Color{c}[0]
+}
+
+// SetFont configures the font family used for rendering. Recalculates font
+// faces using the current factor and DPI settings.
+func (s *Scaffold) SetFont(family FontFamily) {
+	fontFaceOptions := &truetype.Options{
+		Size: s.factor * defaultFontSize,
+		DPI:  defaultFontDPI,
+	}
+
+	switch family {
+	case FontNerd:
+		s.regular = zedMonoFace(zedMonoRegular, fontFaceOptions)
+		s.bold = zedMonoFace(zedMonoBold, fontFaceOptions)
+		s.italic = zedMonoFace(zedMonoItalic, fontFaceOptions)
+		s.boldItalic = zedMonoFace(zedMonoBoldItalic, fontFaceOptions)
+	default:
+		s.regular = font.Hack.Regular(fontFaceOptions)
+		s.bold = font.Hack.Bold(fontFaceOptions)
+		s.italic = font.Hack.Italic(fontFaceOptions)
+		s.boldItalic = font.Hack.BoldItalic(fontFaceOptions)
+	}
+}
+
+func (s *Scaffold) effectiveBGColor() string {
+	if s.bgColorOverride != nil {
+		return *s.bgColorOverride
+	}
+	return s.theme.BackgroundColor
+}
+
+func (s *Scaffold) effectiveFGColor() color.Color {
+	if s.fgColorOverride != nil {
+		return *s.fgColorOverride
+	}
+	return s.theme.DefaultForegroundColor
+}
+
+func (s *Scaffold) effectiveShadowColor() string {
+	return s.theme.ShadowBaseColor
+}
+
+func (s *Scaffold) effectiveBorderColor() string {
+	return s.theme.BorderColor
+}
 
 func (s *Scaffold) SetColumns(columns int) { s.columns = columns }
 
@@ -269,7 +338,7 @@ func (s *Scaffold) image() (image.Image, error) {
 
 		bc := gg.NewContext(int(width), int(height))
 		bc.DrawRoundedRectangle(xOffset+s.shadowOffsetX, yOffset+s.shadowOffsetY, width-2*marginX, height-2*marginY, corner)
-		bc.SetHexColor(s.shadowBaseColor)
+		bc.SetHexColor(s.effectiveShadowColor())
 		bc.Fill()
 
 		src := bc.Image()
@@ -284,11 +353,11 @@ func (s *Scaffold) image() (image.Image, error) {
 	// Draw rounded rectangle with outline to produce impression of a window
 	//
 	dc.DrawRoundedRectangle(xOffset, yOffset, width-2*marginX, height-2*marginY, corner)
-	dc.SetHexColor("#151515")
+	dc.SetHexColor(s.effectiveBGColor())
 	dc.Fill()
 
 	dc.DrawRoundedRectangle(xOffset, yOffset, width-2*marginX, height-2*marginY, corner)
-	dc.SetHexColor("#404040")
+	dc.SetHexColor(s.effectiveBorderColor())
 	dc.SetLineWidth(f(1))
 	dc.Stroke()
 
@@ -349,7 +418,7 @@ func (s *Scaffold) image() (image.Image, error) {
 			)
 
 		default:
-			dc.SetColor(s.defaultForegroundColor)
+			dc.SetColor(s.effectiveFGColor())
 		}
 
 		switch str {
@@ -451,6 +520,26 @@ func (s *Scaffold) WritePNG(w io.Writer) error {
 	}
 
 	return png.Encode(w, img)
+}
+
+// ColumnsUsed returns the maximum number of columns (runes) used across
+// all lines in the current content. Call after AddContent.
+func (s *Scaffold) ColumnsUsed() int {
+	var maxCols, current int
+	for _, cr := range s.content {
+		if cr.Symbol == '\n' {
+			if current > maxCols {
+				maxCols = current
+			}
+			current = 0
+			continue
+		}
+		current++
+	}
+	if current > maxCols {
+		maxCols = current
+	}
+	return maxCols
 }
 
 // WriteRaw writes the scaffold content as-is into the provided writer

@@ -88,6 +88,20 @@ window including all terminal colors and text decorations.
 		var buf bytes.Buffer
 		var pt = ptexec.New()
 
+		// Apply theme and color overrides (theme first, then individual overrides)
+		if light, _ := cmd.Flags().GetBool("light"); light {
+			scaffold.SetTheme(img.LightTheme)
+		}
+		if bgColor, _ := cmd.Flags().GetString("bg-color"); bgColor != "" {
+			scaffold.SetBackgroundColor(bgColor)
+		}
+		if fgColor, _ := cmd.Flags().GetString("fg-color"); fgColor != "" {
+			scaffold.SetForegroundColorHex(fgColor)
+		}
+		if nerdFont, _ := cmd.Flags().GetBool("nerd-font"); nerdFont {
+			scaffold.SetFont(img.FontNerd)
+		}
+
 		// Initialise scaffold with a column sizing so that the
 		// content can be wrapped accordingly
 		//
@@ -212,6 +226,8 @@ window including all terminal colors and text decorations.
 			return err
 		}
 
+		fmt.Fprintf(os.Stderr, "Number of columns used: %d. Use '--columns' to impose it.\n", scaffold.ColumnsUsed())
+
 		// Optional: Save content as-is to a file
 		//
 		if rawWrite != "" {
@@ -332,6 +348,12 @@ func init() {
 	rootCmd.Flags().Bool("no-decoration", false, "do not draw window decorations")
 	rootCmd.Flags().Bool("no-shadow", false, "do not draw window shadow")
 	rootCmd.Flags().BoolP("clip-canvas", "s", false, "clip canvas to visible image area (no margin)")
+
+	// flags to control theme and colors
+	rootCmd.Flags().BoolP("light", "l", false, "use light color theme")
+	rootCmd.Flags().String("bg-color", "", "override background color (hex, e.g. #FFFFFF)")
+	rootCmd.Flags().String("fg-color", "", "override foreground/text color (hex, e.g. #333333)")
+	rootCmd.Flags().Bool("nerd-font", false, "use ZedMono Nerd Font (broader glyph/icon support)")
 
 	// flags for output related settings
 	rootCmd.Flags().StringP("filename", "f", "out.png", "filename of the screenshot")

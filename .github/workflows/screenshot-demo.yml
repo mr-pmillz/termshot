@@ -1,0 +1,48 @@
+---
+name: Screenshot Demo
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+  workflow_dispatch:
+
+jobs:
+  screenshot:
+    name: Capture terminal screenshot
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: stable
+
+    - name: Build termshot
+      run: go build -o termshot ./cmd/termshot/
+
+    - name: Run command and capture screenshot
+      run: |
+        # Run the command, save its output with ANSI codes preserved
+        ls -la --color=always > /tmp/ls-output.txt 2>&1 || true
+        sleep 1
+
+        # Screenshot the output in light mode
+        ./termshot --light --raw-read /tmp/ls-output.txt -f /tmp/screenshot-light.png
+
+        # Also capture a dark mode version for comparison
+        ./termshot --raw-read /tmp/ls-output.txt -f /tmp/screenshot-dark.png
+
+    - name: Upload screenshots
+      uses: actions/upload-artifact@v4
+      with:
+        name: terminal-screenshots
+        path: |
+          /tmp/screenshot-light.png
+          /tmp/screenshot-dark.png
+        retention-days: 14
