@@ -3,138 +3,186 @@
 [![License](https://img.shields.io/github/license/mr-pmillz/termshot.svg)](https://github.com/mr-pmillz/termshot/blob/main/LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/mr-pmillz/termshot)](https://goreportcard.com/report/github.com/mr-pmillz/termshot)
 [![Tests](https://github.com/mr-pmillz/termshot/workflows/Tests/badge.svg)](https://github.com/mr-pmillz/termshot/actions?query=workflow%3A%22Tests%22)
-[![Codecov](https://img.shields.io/codecov/c/github/mr-pmillz/termshot/main.svg)](https://codecov.io/gh/mr-pmillz/termshot)
 [![Go Reference](https://pkg.go.dev/badge/github.com/mr-pmillz/termshot.svg)](https://pkg.go.dev/github.com/mr-pmillz/termshot)
 [![Release](https://img.shields.io/github/release/mr-pmillz/termshot.svg)](https://github.com/mr-pmillz/termshot/releases/latest)
 
-Generate beautiful screenshots of your terminal, from your terminal.
-
-```sh
-termshot lolcat -f <(figlet -f big termshot)
-```
-
-This command generates this screenshot:
-
-![example](.doc/example-cmd-figlet.png)
+Generate beautiful screenshots of your terminal, from your terminal. Supports running commands, capturing existing output, tmux pane capture, and use as a Go library.
 
 ## Installation
 
-To install with Homebrew on macOS or Linux:
-
 ```sh
-brew install homeport/tap/termshot
+go install github.com/mr-pmillz/termshot/cmd/termshot@latest
 ```
 
-See [Releases](https://github.com/mr-pmillz/termshot/releases/) for pre-compiled binaries for Darwin and Linux.
+Pre-compiled binaries for Darwin and Linux are available on the [Releases](https://github.com/mr-pmillz/termshot/releases/) page.
 
-## Usage
+## CLI Usage
 
-This tool reads the console output and renders an output image that resembles a user interface window. It's inspired by some other web-based tools like [carbon.now.sh](https://carbon.now.sh/), and [codekeep.io/screenshot](https://codekeep.io/screenshot). Unlike those tools, `termshot` does not blindly apply syntax highlighting to some provided text; instead it reads the ANSI escape codes ("rich text") logged by most command-line tools and uses it to generate a high-fidelity "screenshot" of your terminal output.
+### Screenshot a command
 
-Like `time`, `watch`, or `perf`, just prefix the command you want to screenshot with `termshot`.
+Prefix any command with `termshot` to capture its output as a PNG:
 
 ```sh
 termshot ls -a
 ```
 
-This will generate an image file called `out.png` in the current directory.
+This generates `out.png` in the current directory.
 
-![basic termshot](.doc/example-cmd-ls-a.png)
-
-In some cases, if your target command contains _pipes_—there may still be ambiguity, even with `--`. In these cases, wrap your command in double quotes.
+Use `--` to separate termshot flags from command flags, and wrap piped commands in quotes:
 
 ```sh
-termshot -- "ls -1 | grep go"
+termshot --show-cmd -- "ls -1 | grep go"
 ```
 
-![termshot with pipes](.doc/example-cmd-ls-pipe-grep.png)
+### Screenshot existing output
 
-### Flags to control the look
-
-#### `--show-cmd`/`-c`
-
-Include the target command in the screenshot.
+Use `--raw-read` to screenshot content from a file or stdin without running a command. This is useful in CI/CD pipelines where the output has already been generated:
 
 ```sh
-termshot --show-cmd -- "ls -a"
+# From a file
+termshot --raw-read build-output.log -f build-screenshot.png
+
+# From stdin
+cat output.txt | termshot --raw-read - -f screenshot.png
+
+# Pipe any command's output
+my-build-script 2>&1 | termshot --raw-read - --columns 120 -f ci-output.png
 ```
 
-![termshot that shows command](.doc/example-cmd-ls-a.png)
+### Screenshot a tmux pane
 
-#### `--columns`/`-C`
-
-Enforce that screenshot is wrapped after the provided number of columns. Use this flag to make sure that the screenshot does not exceed a certain horizontal length.
-
-#### `--no-decoration`
-
-Do not draw window decorations (minimize, maximize, and close button).
-
-#### `--no-shadow`
-
-Do not draw window shadow.
-
-#### `--margin`/`-m`
-
-Add extra space (margin) around the window.
-
-#### `--padding`/`-p`
-
-Add extra space (padding) around the content inside the window.
-
-### Flags for output related settings
-
-#### `--clipboard`/`-b` (only on selected platforms)
-
-Do not create an output file with the screenshot, but save the screenshot image into the operating system clipboard.
-
-_Note:_ Only available on some platforms. Check `termshot` help to see if flag is available.
-
-#### `--filename`/`-f`
-
-Specify a path where the screenshot should be generated. This can be an absolute path or a relative path; relative paths will be resolved relative to the current working directory. Defaults to `out.png`.
+When running inside tmux, use `--tmux` to capture the current pane with its colors and formatting intact:
 
 ```sh
-termshot -- "ls -a" # defaults to <cwd>/out.png
-termshot --filename my-image.png -- "ls -a"
-termshot --filename screenshots/my-image.png -- "ls -a"
-termshot --filename /Desktop/my-image.png -- "ls -a"
+# Capture the current pane
+termshot --tmux -f pane-screenshot.png
+
+# Capture a specific pane by target
+termshot --tmux-pane %1 -f other-pane.png
+
+# Combine with styling options
+termshot --tmux --no-decoration --no-shadow -f clean-capture.png
 ```
 
-### Flags to control content
+The pane width is auto-detected for correct column wrapping. You can override it with `--columns`.
 
-#### `--edit`/`-e`
-
-Edit the output before generating the screenshot. This will open the rich text output in the editor configured in `$EDITOR`, using `vi` as a fallback. Use this flag to remove unwanted or sensitive output.
+You can also pipe tmux capture output manually:
 
 ```sh
-termshot --edit -- "ls -a"
+tmux capture-pane -e -p | termshot --raw-read - -f screenshot.png
+tmux capture-pane -e -p -t %2 | termshot --raw-read - --columns 120 -f pane2.png
 ```
 
-### Miscellaneous flags
+## CLI Flags
 
-#### `--raw-write <file>`
+### Appearance
 
-Write command output as-is into the file that is specified as the flag argument. No screenshot is being created. The command-line flag `--filename` has no effect, when `--raw-write` is used.
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--show-cmd` | `-c` | `false` | Include the command in the screenshot |
+| `--columns` | `-C` | auto | Fixed column count for line wrapping |
+| `--margin` | `-m` | `48` | Space around the window |
+| `--padding` | `-p` | `24` | Space inside the window |
+| `--no-decoration` | | `false` | Hide window buttons |
+| `--no-shadow` | | `false` | Hide window shadow |
+| `--clip-canvas` | `-s` | `false` | Remove transparent margins |
 
-#### `--raw-read <file>`
+### Output
 
-Read input from provided file instead of running a command. If this flag is being used, no pseudo terminal is being created to execute a command. The command-line flags `--show-cmd`, and `--edit` have no effect, when `--raw-read` is used.
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--filename` | `-f` | `out.png` | Output file path |
+| `--clipboard` | `-b` | `false` | Copy to clipboard (macOS only) |
 
-#### `--version`/`-v`
+### Input
 
-Print the version of `termshot` installed.
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--raw-read` | | | Read from file or stdin (`-`) instead of running a command |
+| `--raw-write` | | | Write raw text to file instead of creating a screenshot |
+| `--tmux` | | `false` | Capture the current tmux pane |
+| `--tmux-pane` | | | Capture a specific tmux pane by target (e.g. `%1`) |
+
+### Other
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--edit` | `-e` | Edit content in `$EDITOR` before generating screenshot |
+| `--version` | `-v` | Print version |
+
+## Go Library
+
+The `pkg/termshot` package lets you render terminal screenshots from Go code. This is useful for generating documentation images in CI/CD pipelines, test reports, or any workflow where you need to convert ANSI terminal output to PNG.
 
 ```sh
-$ termshot --version
-termshot version 0.2.5
+go get github.com/mr-pmillz/termshot
 ```
 
-### Multiple commands
+### Basic usage
 
-In order to work, `termshot` uses a pseudo terminal for the command to be executed. For advanced use cases, you can invoke a fully interactive shell, run several commands, and capture the entire output. The screenshot will be created once you terminate the shell.
+```go
+package main
 
-```sh
-termshot /bin/zsh
+import (
+    "os"
+    "strings"
+
+    "github.com/mr-pmillz/termshot/pkg/termshot"
+)
+
+func main() {
+    f, _ := os.Create("screenshot.png")
+    defer f.Close()
+
+    input := strings.NewReader("\x1b[32m$ go test ./...\x1b[0m\nok  mypackage 0.42s")
+    termshot.Render(f, input, termshot.WithColumns(80))
+}
 ```
 
-> _Please note:_ This project is work in progress. Although a lot of the ANSI sequences can be parsed, there are definitely commands in existence that create output that cannot be parsed correctly, yet. Also, commands that reset the cursor position are known to create issues.
+### Sized for Word documents
+
+Generate images that fit a 7-inch content width in Microsoft Word:
+
+```go
+f, _ := os.Create("report-output.png")
+defer f.Close()
+
+termshot.Render(f, reader,
+    termshot.WithColumns(80),
+    termshot.WithTargetWidthInches(7.0, 150),  // 1050px at 150 DPI
+    termshot.WithDecorations(false),
+    termshot.WithShadow(false),
+    termshot.WithMargin(0),
+)
+```
+
+### Capture a tmux pane
+
+```go
+f, _ := os.Create("tmux-capture.png")
+defer f.Close()
+
+termshot.Render(f, nil,
+    termshot.WithTmux(),
+    termshot.WithTargetWidth(1200),
+    termshot.WithDecorations(false),
+)
+```
+
+### Library options
+
+| Option | Description |
+|--------|-------------|
+| `WithColumns(n)` | Fixed column count for line wrapping |
+| `WithTargetWidth(pixels)` | Scale output to exact pixel width |
+| `WithTargetWidthInches(inches, dpi)` | Scale to physical size (e.g. `7.0, 150`) |
+| `WithMargin(n)` | Margin around window (default: 48) |
+| `WithPadding(n)` | Padding inside window (default: 24) |
+| `WithDecorations(bool)` | Window buttons (default: true) |
+| `WithShadow(bool)` | Window shadow (default: true) |
+| `WithClipCanvas(bool)` | Remove transparent edges (default: false) |
+| `WithCommand(args...)` | Prepend styled command prompt |
+| `WithTmux()` | Capture current tmux pane (reader is ignored) |
+| `WithTmuxPane(target)` | Capture specific tmux pane |
+
+> _Note:_ This project is work in progress. Although a lot of ANSI sequences can be parsed, there are commands that create output which cannot be parsed correctly yet. Commands that reset the cursor position are known to create issues.

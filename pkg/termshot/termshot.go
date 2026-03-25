@@ -21,10 +21,15 @@
 package termshot
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"image/png"
 	"io"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
 
 	"github.com/mr-pmillz/termshot/internal/img"
 	"golang.org/x/image/draw"
@@ -39,6 +44,8 @@ type config struct {
 	clipCanvas  *bool
 	targetWidth int
 	command     []string
+	tmux        bool
+	tmuxPane    string
 }
 
 // Render reads ANSI-styled terminal text from r and writes a styled PNG
@@ -87,7 +94,30 @@ func Render(w io.Writer, r io.Reader, opts ...Option) error {
 		}
 	}
 
-	if err := scaffold.AddContent(r); err != nil {
+	// Determine content source: tmux pane or provided reader
+	var content io.Reader
+	if cfg.tmux {
+		if os.Getenv("TMUX") == "" {
+			return fmt.Errorf("not inside a tmux session")
+		}
+
+		data, err := captureTmux(cfg.tmuxPane)
+		if err != nil {
+			return err
+		}
+		content = bytes.NewReader(data)
+
+		// Auto-detect pane width for column wrapping if not set
+		if cfg.columns == 0 {
+			if width, err := paneWidth(); err == nil {
+				scaffold.SetColumns(width)
+			}
+		}
+	} else {
+		content = r
+	}
+
+	if err := scaffold.AddContent(content); err != nil {
 		return fmt.Errorf("failed to add content: %w", err)
 	}
 
@@ -96,6 +126,34 @@ func Render(w io.Writer, r io.Reader, opts ...Option) error {
 	}
 
 	return scaffold.WritePNG(w)
+}
+
+func captureTmux(target string) ([]byte, error) {
+	args := []string{"capture-pane", "-e", "-p"}
+	if target != "" {
+		args = append(args, "-t", target)
+	}
+
+	out, err := exec.Command("tmux", args...).Output() // #nosec G204
+	if err != nil {
+		return nil, fmt.Errorf("failed to capture tmux pane: %w", err)
+	}
+
+	return out, nil
+}
+
+func paneWidth() (int, error) {
+	out, err := exec.Command("tmux", "display-message", "-p", "#{pane_width}").Output()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get tmux pane width: %w", err)
+	}
+
+	width, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse tmux pane width: %w", err)
+	}
+
+	return width, nil
 }
 
 func renderScaled(w io.Writer, scaffold *img.Scaffold, targetWidth int) error {

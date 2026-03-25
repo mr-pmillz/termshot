@@ -23,6 +23,7 @@ package termshot_test
 import (
 	"bytes"
 	"image/png"
+	"os"
 	"strings"
 
 	"github.com/gonvenience/bunt"
@@ -290,6 +291,71 @@ var _ = Describe("Termshot Library", func() {
 
 			// With command prepended, image should be taller
 			Expect(imgWith.Bounds().Dy()).To(BeNumerically(">", imgWithout.Bounds().Dy()))
+		})
+	})
+
+	Context("WithTmux", func() {
+		It("should fail when not in a tmux session", func() {
+			// Temporarily unset TMUX to test the guard
+			orig := os.Getenv("TMUX")
+			Expect(os.Unsetenv("TMUX")).To(Succeed())
+			defer func() { Expect(os.Setenv("TMUX", orig)).To(Succeed()) }()
+
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, nil, termshot.WithTmux())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not inside a tmux session"))
+		})
+
+		It("should capture the current tmux pane when in tmux", func() {
+			if os.Getenv("TMUX") == "" {
+				Skip("not running inside tmux")
+			}
+
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, nil, termshot.WithTmux())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(buf.Len()).To(BeNumerically(">", 0))
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+
+		It("should capture a specific tmux pane", func() {
+			if os.Getenv("TMUX") == "" {
+				Skip("not running inside tmux")
+			}
+
+			pane := os.Getenv("TMUX_PANE")
+			if pane == "" {
+				Skip("TMUX_PANE not set")
+			}
+
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, nil, termshot.WithTmuxPane(pane))
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+
+		It("should support target width with tmux capture", func() {
+			if os.Getenv("TMUX") == "" {
+				Skip("not running inside tmux")
+			}
+
+			var buf bytes.Buffer
+			err := termshot.Render(&buf, nil,
+				termshot.WithTmux(),
+				termshot.WithTargetWidthInches(7.0, 96),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(Equal(672))
 		})
 	})
 

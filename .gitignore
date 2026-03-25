@@ -1,3 +1,8 @@
 dist
 **/*.coverprofile
-termshot
+/termshot
+*.png
+*.svg
+*.jpg
+*.jpeg
+*.gif

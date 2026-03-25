@@ -78,3 +78,17 @@ func WithClipCanvas(enabled bool) Option {
 func WithCommand(args ...string) Option {
 	return func(c *config) { c.command = args }
 }
+
+// WithTmux captures the current tmux pane content. When set, the reader
+// argument to Render is ignored and the content is read from the tmux pane.
+// The pane width is automatically detected for column wrapping.
+func WithTmux() Option {
+	return func(c *config) { c.tmux = true }
+}
+
+// WithTmuxPane captures a specific tmux pane by target identifier
+// (e.g. "%1", "session:window.pane"). Like WithTmux, the reader argument
+// to Render is ignored.
+func WithTmuxPane(target string) Option {
+	return func(c *config) { c.tmux = true; c.tmuxPane = target }
+}

@@ -71,8 +71,16 @@ window including all terminal colors and text decorations.
 
 		rawRead, _ := cmd.Flags().GetString("raw-read")
 		rawWrite, _ := cmd.Flags().GetString("raw-write")
+		tmuxCapture, _ := cmd.Flags().GetBool("tmux")
+		tmuxPane, _ := cmd.Flags().GetString("tmux-pane")
 
-		if len(args) == 0 && rawRead == "" {
+		if tmuxCapture || tmuxPane != "" {
+			if !isTmuxSession() {
+				return fmt.Errorf("not inside a tmux session")
+			}
+		}
+
+		if len(args) == 0 && rawRead == "" && !tmuxCapture && tmuxPane == "" {
 			return cmd.Usage()
 		}
 
@@ -132,7 +140,22 @@ window including all terminal colors and text decorations.
 
 		// Get the actual content for the screenshot
 		//
-		if rawRead == "" {
+		if tmuxCapture || tmuxPane != "" {
+			// Capture content from a tmux pane
+			content, err := captureTmuxPane(tmuxPane)
+			if err != nil {
+				return err
+			}
+			buf.Write(content)
+
+			// Auto-detect pane width for column wrapping if not set
+			if columns, err := cmd.Flags().GetInt("columns"); err == nil && columns == 0 {
+				if width, err := tmuxPaneWidth(); err == nil {
+					scaffold.SetColumns(width)
+				}
+			}
+
+		} else if rawRead == "" {
 			// Run the provided command in a pseudo terminal and capture
 			// the output to be later rendered into the screenshot
 			bytes, err := pt.Command(args[0], args[1:]...).Run()
@@ -316,6 +339,10 @@ func init() {
 	// flags for raw output processing
 	rootCmd.Flags().String("raw-write", "", "write raw output to file instead of creating a screenshot")
 	rootCmd.Flags().String("raw-read", "", "read raw input from file instead of executing a command")
+
+	// flags for tmux integration
+	rootCmd.Flags().Bool("tmux", false, "capture the current tmux pane")
+	rootCmd.Flags().String("tmux-pane", "", "capture a specific tmux pane by target (e.g. %1, session:window.pane)")
 
 	// internals
 	rootCmd.Flags().BoolP("version", "v", false, "show version")
