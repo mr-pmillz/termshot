@@ -12,7 +12,7 @@ on:
 
 jobs:
   screenshot:
-    name: Capture terminal screenshot
+    name: Capture terminal screenshots
     runs-on: ubuntu-latest
     steps:
     - name: Check out code
@@ -26,23 +26,124 @@ jobs:
     - name: Build termshot
       run: go build -o termshot ./cmd/termshot/
 
-    - name: Run command and capture screenshot
+    - name: Run command and capture screenshots
       run: |
-        # Run the command, save its output with ANSI codes preserved
+        mkdir -p /tmp/screenshots
+
+        # --- Generate sample outputs ---
         ls -la --color=always > /tmp/ls-output.txt 2>&1 || true
         sleep 1
 
-        # Screenshot the output in light mode
-        ./termshot --light --raw-read /tmp/ls-output.txt -f /tmp/screenshot-light.png
+        # --- 1. Basic theme variants ---
+        ./termshot --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/01-dark-default.png
 
-        # Also capture a dark mode version for comparison
-        ./termshot --raw-read /tmp/ls-output.txt -f /tmp/screenshot-dark.png
+        ./termshot --light --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/02-light-default.png
+
+        # --- 2. Nerd font variants ---
+        ./termshot --nerd-font --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/03-dark-nerd-font.png
+
+        ./termshot --light --nerd-font --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/04-light-nerd-font.png
+
+        # --- 3. Custom color combos ---
+        # Solarized Dark style
+        ./termshot --bg-color="#002B36" --fg-color="#839496" \
+          --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/05-solarized-dark.png
+
+        # Solarized Light style
+        ./termshot --light --bg-color="#FDF6E3" --fg-color="#657B83" \
+          --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/06-solarized-light.png
+
+        # Dracula style
+        ./termshot --bg-color="#282A36" --fg-color="#F8F8F2" \
+          --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/07-dracula.png
+
+        # Nord style
+        ./termshot --bg-color="#2E3440" --fg-color="#D8DEE9" \
+          --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/08-nord.png
+
+        # Monokai style
+        ./termshot --bg-color="#272822" --fg-color="#F8F8F2" \
+          --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/09-monokai.png
+
+        # High-contrast light
+        ./termshot --light --bg-color="#FFFFFF" --fg-color="#000000" \
+          --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/10-high-contrast-light.png
+
+        # --- 4. Column count variations ---
+        ./termshot --light -C 40 --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/11-light-cols-40.png
+
+        ./termshot --light -C 80 --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/12-light-cols-80.png
+
+        ./termshot --light -C 120 --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/13-light-cols-120.png
+
+        ./termshot -C 40 --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/14-dark-cols-40.png
+
+        ./termshot -C 120 --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/15-dark-cols-120.png
+
+        # --- 5. Decoration/shadow variants ---
+        ./termshot --light --no-decoration --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/16-light-no-decoration.png
+
+        ./termshot --light --no-shadow --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/17-light-no-shadow.png
+
+        ./termshot --light --no-decoration --no-shadow --clip-canvas \
+          --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/18-light-minimal-clipped.png
+
+        # --- 6. Nerd font with custom colors and columns ---
+        ./termshot --nerd-font --bg-color="#1E1E2E" --fg-color="#CDD6F4" -C 80 \
+          --raw-read /tmp/ls-output.txt \
+          -f /tmp/screenshots/19-catppuccin-nerd-cols80.png
+
+        # --- 7. With --show-cmd flag ---
+        ./termshot --light -c -f /tmp/screenshots/20-light-show-cmd.png \
+          -- ls -la --color=always
+
+        ./termshot -c --nerd-font -f /tmp/screenshots/21-dark-nerd-show-cmd.png \
+          -- ls -la --color=always
+
+    - name: Capture full build log screenshot
+      run: |
+        # Replay the build+screenshot step output as a combined log
+        {
+          echo "=== go build output ==="
+          go build -v ./cmd/termshot/ 2>&1 || true
+          echo ""
+          echo "=== ls -la ==="
+          ls -la --color=always
+          echo ""
+          echo "=== termshot --help ==="
+          ./termshot --help
+        } > /tmp/full-log.txt 2>&1 || true
+
+        ./termshot --light -C 120 --raw-read /tmp/full-log.txt \
+          -f /tmp/screenshots/22-full-build-log-light.png
+
+        ./termshot -C 120 --raw-read /tmp/full-log.txt \
+          -f /tmp/screenshots/23-full-build-log-dark.png
+
+        ./termshot --light --nerd-font -C 120 --raw-read /tmp/full-log.txt \
+          -f /tmp/screenshots/24-full-build-log-light-nerd.png
 
     - name: Upload screenshots
       uses: actions/upload-artifact@v4
       with:
         name: terminal-screenshots
-        path: |
-          /tmp/screenshot-light.png
-          /tmp/screenshot-dark.png
+        path: /tmp/screenshots/
         retention-days: 14
