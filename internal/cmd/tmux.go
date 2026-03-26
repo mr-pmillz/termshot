@@ -35,10 +35,19 @@ func isTmuxSession() bool {
 
 // captureTmuxPane runs tmux capture-pane and returns the ANSI-colored content
 // of the specified pane. If target is empty, the current pane is captured.
-func captureTmuxPane(target string) ([]byte, error) {
+// If lines is non-nil, it limits capture to the last N scrollback lines
+// (0 or negative captures entire history).
+func captureTmuxPane(target string, lines *int) ([]byte, error) {
 	args := []string{"capture-pane", "-e", "-p"}
 	if target != "" {
 		args = append(args, "-t", target)
+	}
+	if lines != nil {
+		if *lines <= 0 {
+			args = append(args, "-S", "-")
+		} else {
+			args = append(args, "-S", fmt.Sprintf("-%d", *lines))
+		}
 	}
 
 	out, err := exec.Command("tmux", args...).Output() // #nosec G204

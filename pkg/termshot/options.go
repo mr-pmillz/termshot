@@ -132,3 +132,20 @@ func WithHighlightColor(hex string) Option {
 func WithHighlightTight(enabled bool) Option {
 	return func(c *config) { c.highlightTight = &enabled }
 }
+
+// WithQuiet suppresses informational messages (such as the column count)
+// that are normally written to stderr during rendering.
+func WithQuiet() Option {
+	return func(c *config) { c.quiet = true }
+}
+
+// WithTmuxLines limits tmux capture to the last n lines from the pane's
+// scrollback buffer. Implies WithTmux(). When n is 0 or negative, the
+// entire scrollback history is captured. When unset, only the visible
+// pane content is captured (the default tmux behavior).
+func WithTmuxLines(n int) Option {
+	return func(c *config) {
+		c.tmux = true
+		c.tmuxLines = &n
+	}
+}

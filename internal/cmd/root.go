@@ -167,7 +167,11 @@ window including all terminal colors and text decorations.
 		//
 		if tmuxCapture || tmuxPane != "" {
 			// Capture content from a tmux pane
-			content, err := captureTmuxPane(tmuxPane)
+			var tmuxLines *int
+			if val, err := cmd.Flags().GetInt("tmux-lines"); err == nil && val > 0 {
+				tmuxLines = &val
+			}
+			content, err := captureTmuxPane(tmuxPane, tmuxLines)
 			if err != nil {
 				return err
 			}
@@ -379,6 +383,7 @@ func init() {
 	// flags for tmux integration
 	rootCmd.Flags().Bool("tmux", false, "capture the current tmux pane")
 	rootCmd.Flags().String("tmux-pane", "", "capture a specific tmux pane by target (e.g. %1, session:window.pane)")
+	rootCmd.Flags().Int("tmux-lines", 0, "capture last N lines from tmux scrollback (0 = visible pane only)")
 
 	// internals
 	rootCmd.Flags().BoolP("version", "v", false, "show version")

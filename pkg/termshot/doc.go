@@ -23,7 +23,7 @@
 // It produces images that resemble a terminal window, complete with optional
 // window decorations, shadow, and full ANSI color and text style support.
 //
-// Basic usage:
+// # Basic usage
 //
 //	var buf bytes.Buffer
 //	err := termshot.Render(&buf, strings.NewReader("\x1b[32mhello\x1b[0m"))
@@ -34,4 +34,29 @@
 //	    termshot.WithColumns(80),
 //	    termshot.WithTargetWidthInches(7.0, 150),
 //	)
+//
+// # Recorder — explicit io.Writer capture
+//
+// [Recorder] is an [io.Writer] that buffers everything written to it, then
+// renders the content as a PNG. It is goroutine-safe and composable with
+// loggers, exec.Cmd.Stdout, or any other writer:
+//
+//	rec := termshot.NewRecorder(termshot.WithColumns(80)).Tee(os.Stdout)
+//	defer rec.RenderToFile("output.png")
+//	fmt.Fprintln(rec, "Hello, world!")
+//
+// # CaptureSession — automatic stdout/stderr capture
+//
+// [StartCapture] redirects os.Stdout and os.Stderr at the file-descriptor
+// level so that all output (including from third-party libraries) is
+// captured automatically. Output is tee'd to the original terminal:
+//
+//	capture, err := termshot.StartCapture("output.png", termshot.WithColumns(80))
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer capture.Done()
+//	fmt.Println("This is automatically captured!")
+//
+// CaptureSession is only supported on Unix systems (Linux and macOS).
 package termshot

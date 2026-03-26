@@ -163,6 +163,7 @@ termshot -c --highlight-cmd --highlight-color="#FFA500" -- nuclei -t cves/ -u ta
 | `--raw-write` | | | Write raw text to file instead of creating a screenshot |
 | `--tmux` | | `false` | Capture the current tmux pane |
 | `--tmux-pane` | | | Capture a specific tmux pane by target (e.g. `%1`) |
+| `--tmux-lines` | | `0` | Capture last N lines from tmux scrollback (0 = visible pane only) |
 
 ### Other
 
@@ -275,6 +276,108 @@ termshot.Render(f, nil,
 )
 ```
 
+### Recorder — capture output via io.Writer
+
+`Recorder` is an `io.Writer` that buffers everything written to it and renders a PNG on demand. Use `Tee` to keep output visible in the terminal while recording. This is useful for logging pipelines, test harnesses, or any code that produces output through an `io.Writer`:
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+    "os/exec"
+
+    "github.com/mr-pmillz/termshot/pkg/termshot"
+)
+
+func main() {
+    rec := termshot.NewRecorder(
+        termshot.WithColumns(120),
+        termshot.WithLightMode(),
+    ).Tee(os.Stdout) // also print to terminal
+
+    // Route command output through the recorder
+    cmd := exec.Command("go", "test", "./...")
+    cmd.Stdout = rec
+    cmd.Stderr = rec
+    _ = cmd.Run()
+
+    // Render everything that was written
+    _ = rec.RenderToFile("test-results.png")
+}
+```
+
+`Recorder` is goroutine-safe, so multiple writers can use it concurrently. Use `Reset()` to clear the buffer and reuse it.
+
+### CaptureSession — automatic stdout/stderr capture with defer
+
+`StartCapture` redirects `os.Stdout` and `os.Stderr` at the file-descriptor level, so **all** output is captured automatically — including output from third-party libraries, child processes, and `fmt.Println`. Output is tee'd to the original terminal so it remains visible during capture. Call `Done` via `defer` to restore the original file descriptors and render the PNG:
+
+```go
+package main
+
+import (
+    "fmt"
+    "os"
+
+    "github.com/mr-pmillz/termshot/pkg/termshot"
+)
+
+func main() {
+    capture, err := termshot.StartCapture("output.png",
+        termshot.WithColumns(80),
+        termshot.WithLightMode(),
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer capture.Done()
+
+    fmt.Println("This is automatically captured!")
+    fmt.Fprintf(os.Stderr, "Errors are captured too.\n")
+    // When main returns, Done() renders everything to output.png
+}
+```
+
+`CaptureSession` is supported on Linux and macOS (uses `dup2` syscall). It is **not** goroutine-safe — other goroutines writing to stdout/stderr will also be captured. For goroutine-safe capture, use `Recorder` instead.
+
+You can also use `CaptureSession` inside any function with `defer` to screenshot just that function's output:
+
+```go
+func runScan(target string) error {
+    capture, err := termshot.StartCapture(
+        fmt.Sprintf("scan-%s.png", target),
+        termshot.WithColumns(120),
+        termshot.WithHighlightCommand(true),
+    )
+    if err != nil {
+        return err
+    }
+    defer capture.Done()
+
+    // Everything printed in this function is captured
+    cmd := exec.Command("nmap", "-sV", target)
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+    return cmd.Run()
+}
+```
+
+### Capture tmux scrollback
+
+Use `WithTmuxLines(n)` to capture the last N lines from a tmux pane's scrollback buffer instead of just the visible area:
+
+```go
+f, _ := os.Create("scrollback.png")
+defer f.Close()
+
+termshot.Render(f, nil,
+    termshot.WithTmuxLines(50),   // last 50 lines (implies WithTmux)
+    termshot.WithColumns(120),
+)
+```
+
 ### Library options
 
 | Option | Description |
@@ -297,5 +400,7 @@ termshot.Render(f, nil,
 | `WithNerdFont()` | Use ZedMono Nerd Font |
 | `WithTmux()` | Capture current tmux pane (reader is ignored) |
 | `WithTmuxPane(target)` | Capture specific tmux pane |
+| `WithTmuxLines(n)` | Capture last N lines from tmux scrollback (implies `WithTmux`) |
+| `WithQuiet()` | Suppress informational stderr messages during rendering |
 
 > _Note:_ This project is work in progress. Although a lot of ANSI sequences can be parsed, there are commands that create output which cannot be parsed correctly yet. Commands that reset the cursor position are known to create issues.

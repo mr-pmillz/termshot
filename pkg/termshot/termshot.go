@@ -53,6 +53,8 @@ type config struct {
 	highlightCommand *bool
 	highlightColor   *string
 	highlightTight   *bool
+	quiet            bool
+	tmuxLines        *int
 }
 
 // Render reads ANSI-styled terminal text from r and writes a styled PNG
@@ -132,7 +134,7 @@ func Render(w io.Writer, r io.Reader, opts ...Option) error {
 			return fmt.Errorf("not inside a tmux session")
 		}
 
-		data, err := captureTmux(cfg.tmuxPane)
+		data, err := captureTmux(cfg.tmuxPane, cfg.tmuxLines)
 		if err != nil {
 			return err
 		}
@@ -152,7 +154,9 @@ func Render(w io.Writer, r io.Reader, opts ...Option) error {
 		return fmt.Errorf("failed to add content: %w", err)
 	}
 
-	fmt.Fprintf(os.Stderr, "Number of columns used: %d. Use WithColumns() or '--columns' to impose it.\n", scaffold.ColumnsUsed())
+	if !cfg.quiet {
+		fmt.Fprintf(os.Stderr, "Number of columns used: %d. Use WithColumns() or '--columns' to impose it.\n", scaffold.ColumnsUsed())
+	}
 
 	if cfg.targetWidth > 0 {
 		return renderScaled(w, &scaffold, cfg.targetWidth)
@@ -185,10 +189,19 @@ func RenderCommand(w io.Writer, command string, opts ...Option) error {
 	return Render(w, bytes.NewReader(out), opts...)
 }
 
-func captureTmux(target string) ([]byte, error) {
+func captureTmux(target string, lines *int) ([]byte, error) {
 	args := []string{"capture-pane", "-e", "-p"}
 	if target != "" {
 		args = append(args, "-t", target)
+	}
+	if lines != nil {
+		if *lines <= 0 {
+			// Capture entire scrollback history
+			args = append(args, "-S", "-")
+		} else {
+			// Capture last N lines from scrollback
+			args = append(args, "-S", fmt.Sprintf("-%d", *lines))
+		}
 	}
 
 	out, err := exec.Command("tmux", args...).Output() // #nosec G204
