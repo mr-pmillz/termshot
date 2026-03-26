@@ -34,11 +34,17 @@ Three internal packages, each with a single responsibility:
 - **`internal/ptexec`** — Runs commands in a pseudo-terminal using `creack/pty`. Builder pattern API (`New().Cols(80).Command("ls").Run()`). Handles PTY sizing, `SIGWINCH` signals, and CI environment detection.
 - **`internal/img`** — Renders ANSI-colored terminal output to PNG. `Scaffold` struct uses builder pattern for configuration. Pipeline: parse ANSI via `gonvenience/bunt` -> measure with font metrics -> draw shadow (`stackblur`) -> draw window frame + decorations (`fogleman/gg`) -> render each colored character with Hack font at 2x DPI.
 
+One public package for library consumers:
+
+- **`pkg/termshot`** — Public Go API: `Render()`, `RenderCommand()`, `Recorder` (io.Writer capture), `CaptureSession` (fd-level stdout/stderr redirect). All options use functional options pattern (`WithColumns()`, `WithLightMode()`, etc.).
+
 **Data flow:** Command args -> ptexec (or `--raw-read` file) -> raw bytes with ANSI codes -> `Scaffold.AddContent()` parses into `bunt.ColoredRune[]` -> `Scaffold.WritePNG()` renders image.
 
 ## Testing
 
 Uses **Ginkgo v2 + Gomega**. Tests are collocated with source files. Image tests in `internal/img` compare rendered PNG output byte-for-byte against reference images in `test/data/`. The custom `LookLike()` Gomega matcher handles this comparison.
+
+PNG rendering tests are CPU-heavy; the full `pkg/termshot` suite takes ~4 minutes with `-race`. CaptureSession tests must use Ginkgo's `Serial` decorator since they mutate global `os.Stdout`/`os.Stderr`.
 
 ## Key Dependencies
 
@@ -54,3 +60,7 @@ Uses **Ginkgo v2 + Gomega**. Tests are collocated with source files. Image tests
 - The `TS_COMMAND_INDICATOR` env var overrides the default `➜` prompt indicator in screenshots
 - GoReleaser handles cross-compilation (linux/darwin, amd64/arm64) and Homebrew tap publishing
 - Linting uses golangci-lint with `gocritic` and `gosec` enabled
+- Use `#nosec G115` for unavoidable `uintptr`↔`int` conversions in syscall code (e.g. `os.Stdin.Fd()`)
+- Platform-specific files use `//go:build unix` / `//go:build !unix` build tags (see `capture_unix.go`, `root_darwin.go`)
+- `pkg/termshot/` is importable by external Go code; `internal/` packages are not
+- Do NOT reassign `os.Stdout`/`os.Stderr` Go-level pointers when redirecting fds via `dup2` — causes GC-related hangs. Just `dup2` the fds; the existing `*os.File` objects automatically use the redirected fds.

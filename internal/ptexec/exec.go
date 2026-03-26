@@ -108,13 +108,14 @@ func (c *PseudoTerminal) Run() ([]byte, error) {
 
 	// Set RAW mode for Stdin
 	if isTerminal(os.Stdin) {
-		oldState, rawErr := term.MakeRaw(int(os.Stdin.Fd()))
+		stdinFd := int(os.Stdin.Fd()) // #nosec G115
+		oldState, rawErr := term.MakeRaw(stdinFd)
 		if rawErr != nil {
 			return nil, fmt.Errorf("failed to enable RAW mode for Stdin: %w", rawErr)
 		}
 
 		// And make sure to restore the original mode eventually
-		defer func() { _ = term.Restore(int(os.Stdin.Fd()), oldState) }()
+		defer func() { _ = term.Restore(stdinFd, oldState) }()
 	}
 
 	// collect all errors along the way
