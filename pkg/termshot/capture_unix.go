@@ -25,7 +25,8 @@ package termshot
 import (
 	"fmt"
 	"os"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 func startCapture(outputPath string, opts ...Option) (*CaptureSession, error) {
@@ -36,7 +37,7 @@ func startCapture(outputPath string, opts ...Option) (*CaptureSession, error) {
 
 	// Dup the original stdout and stderr fds so we can restore them later
 	// and tee output to the original terminal.
-	savedOutFd, err := syscall.Dup(1) // #nosec G115
+	savedOutFd, err := unix.Dup(1) // #nosec G115
 	if err != nil {
 		_ = pipeR.Close()
 		_ = pipeW.Close()
@@ -44,7 +45,7 @@ func startCapture(outputPath string, opts ...Option) (*CaptureSession, error) {
 	}
 	savedOut := os.NewFile(uintptr(savedOutFd), "saved-stdout") // #nosec G115
 
-	savedErrFd, err := syscall.Dup(2) // #nosec G115
+	savedErrFd, err := unix.Dup(2) // #nosec G115
 	if err != nil {
 		_ = pipeR.Close()
 		_ = pipeW.Close()
@@ -56,16 +57,16 @@ func startCapture(outputPath string, opts ...Option) (*CaptureSession, error) {
 	// Redirect fd 1 and fd 2 to the pipe write end.
 	// os.Stdout and os.Stderr still wrap fds 1 and 2 respectively,
 	// so all writes automatically go to the pipe now.
-	if err := syscall.Dup2(int(pipeW.Fd()), 1); err != nil { // #nosec G115
+	if err := unix.Dup2(int(pipeW.Fd()), 1); err != nil { // #nosec G115
 		_ = pipeR.Close()
 		_ = pipeW.Close()
 		_ = savedOut.Close()
 		_ = savedErr.Close()
 		return nil, fmt.Errorf("failed to redirect stdout: %w", err)
 	}
-	if err := syscall.Dup2(int(pipeW.Fd()), 2); err != nil { // #nosec G115
+	if err := unix.Dup2(int(pipeW.Fd()), 2); err != nil { // #nosec G115
 		// Attempt to restore stdout before failing
-		_ = syscall.Dup2(savedOutFd, 1) // #nosec G115
+		_ = unix.Dup2(savedOutFd, 1) // #nosec G115
 		_ = pipeR.Close()
 		_ = pipeW.Close()
 		_ = savedOut.Close()
@@ -93,7 +94,7 @@ func startCapture(outputPath string, opts ...Option) (*CaptureSession, error) {
 
 // dupFd restores a file descriptor by dup2'ing the saved fd onto targetFd.
 func dupFd(saved *os.File, targetFd int) error {
-	if err := syscall.Dup2(int(saved.Fd()), targetFd); err != nil { // #nosec G115
+	if err := unix.Dup2(int(saved.Fd()), targetFd); err != nil { // #nosec G115
 		return fmt.Errorf("failed to restore fd %d: %w", targetFd, err)
 	}
 	return nil
