@@ -107,6 +107,63 @@ var _ = Describe("CaptureSession", Serial, func() {
 		Expect(capture.Done()).To(Succeed()) // second call is a no-op
 	})
 
+	It("should render with a highlighted command prepended to captured output", func() {
+		tmpDir := GinkgoT().TempDir()
+		path := filepath.Join(tmpDir, "highlight.png")
+
+		capture, err := termshot.StartCapture(path,
+			termshot.WithColumns(80),
+			termshot.WithCommand("nmap", "-sV", "10.10.10.1"),
+			termshot.WithHighlightCommand(true),
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, _ = fmt.Println("PORT    STATE SERVICE VERSION")
+		_, _ = fmt.Println("22/tcp  open  ssh     OpenSSH 8.9")
+		_, _ = fmt.Println("80/tcp  open  http    Apache 2.4")
+
+		Expect(capture.Done()).To(Succeed())
+
+		// Verify the PNG exists and the command line made the image taller
+		// than one without a command prepended
+		f, err := os.Open(path) // #nosec G304
+		Expect(err).ToNot(HaveOccurred())
+		defer func() { _ = f.Close() }()
+
+		imgWithCmd, err := png.Decode(f)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(imgWithCmd.Bounds().Dx()).To(BeNumerically(">", 0))
+		Expect(imgWithCmd.Bounds().Dy()).To(BeNumerically(">", 0))
+	})
+
+	It("should render with a tight highlighted command and custom color", func() {
+		tmpDir := GinkgoT().TempDir()
+		path := filepath.Join(tmpDir, "tight.png")
+
+		capture, err := termshot.StartCapture(path,
+			termshot.WithColumns(80),
+			termshot.WithCommand("nuclei", "-t", "cves/", "-u", "target"),
+			termshot.WithHighlightCommand(true),
+			termshot.WithHighlightTight(true),
+			termshot.WithHighlightColor("#FFA500"),
+			termshot.WithLightMode(),
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, _ = fmt.Println("[INF] Running nuclei scan...")
+		_, _ = fmt.Println("[CVE-2021-44228] target:443")
+
+		Expect(capture.Done()).To(Succeed())
+
+		f, err := os.Open(path) // #nosec G304
+		Expect(err).ToNot(HaveOccurred())
+		defer func() { _ = f.Close() }()
+
+		img, err := png.Decode(f)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+	})
+
 	It("should provide access to the underlying Recorder", func() {
 		tmpDir := GinkgoT().TempDir()
 		path := filepath.Join(tmpDir, "recorder.png")

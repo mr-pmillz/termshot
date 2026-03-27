@@ -185,5 +185,32 @@ var _ = Describe("Recorder", func() {
 			// Narrow columns should produce a narrower but taller image
 			Expect(narrowImg.Bounds().Dx()).To(BeNumerically("<", wideImg.Bounds().Dx()))
 		})
+
+		It("should render with a highlighted command prepended to recorded content", func() {
+			rec := termshot.NewRecorder(
+				termshot.WithColumns(80),
+				termshot.WithCommand("nmap", "-sV", "10.10.10.1"),
+				termshot.WithHighlightCommand(true),
+			)
+			_, _ = fmt.Fprintln(rec, "22/tcp open ssh")
+
+			var withCmdBuf bytes.Buffer
+			Expect(rec.Render(&withCmdBuf)).To(Succeed())
+
+			// Render the same content without command for comparison
+			plainRec := termshot.NewRecorder(termshot.WithColumns(80))
+			_, _ = fmt.Fprintln(plainRec, "22/tcp open ssh")
+
+			var plainBuf bytes.Buffer
+			Expect(plainRec.Render(&plainBuf)).To(Succeed())
+
+			withCmdImg, err := png.Decode(&withCmdBuf)
+			Expect(err).ToNot(HaveOccurred())
+			plainImg, err := png.Decode(&plainBuf)
+			Expect(err).ToNot(HaveOccurred())
+
+			// With command prepended, image should be taller
+			Expect(withCmdImg.Bounds().Dy()).To(BeNumerically(">", plainImg.Bounds().Dy()))
+		})
 	})
 })
