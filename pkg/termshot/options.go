@@ -149,3 +149,13 @@ func WithTmuxLines(n int) Option {
 		c.tmuxLines = &n
 	}
 }
+
+// WithMaxRows limits the rendered output to the first n lines. When the
+// captured content exceeds n lines, only the first n lines are rendered
+// into the PNG image. This prevents out-of-memory conditions when
+// capturing long-running commands that produce thousands of lines of
+// output. A truncation notice is appended when lines are dropped.
+// When n is 0 or negative, no limit is applied (the default).
+func WithMaxRows(n int) Option {
+	return func(c *config) { c.maxRows = &n }
+}

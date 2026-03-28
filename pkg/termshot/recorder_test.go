@@ -165,6 +165,72 @@ var _ = Describe("Recorder", func() {
 		})
 	})
 
+	Context("WithMaxRows", func() {
+		It("should truncate output to last N lines when content exceeds maxRows", func() {
+			rec := termshot.NewRecorder(termshot.WithColumns(80), termshot.WithMaxRows(5))
+			for i := 1; i <= 100; i++ {
+				_, _ = fmt.Fprintf(rec, "line %d\n", i)
+			}
+
+			var buf bytes.Buffer
+			Expect(rec.Render(&buf)).To(Succeed())
+
+			// Should produce a valid PNG (the main point is it doesn't OOM)
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dx()).To(BeNumerically(">", 0))
+		})
+
+		It("should produce a shorter image than untruncated output", func() {
+			// Render 100 lines without maxRows
+			fullRec := termshot.NewRecorder(termshot.WithColumns(80))
+			for i := 1; i <= 100; i++ {
+				_, _ = fmt.Fprintf(fullRec, "line %d\n", i)
+			}
+			var fullBuf bytes.Buffer
+			Expect(fullRec.Render(&fullBuf)).To(Succeed())
+			fullImg, err := png.Decode(&fullBuf)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Render 100 lines with maxRows=10
+			truncRec := termshot.NewRecorder(termshot.WithColumns(80), termshot.WithMaxRows(10))
+			for i := 1; i <= 100; i++ {
+				_, _ = fmt.Fprintf(truncRec, "line %d\n", i)
+			}
+			var truncBuf bytes.Buffer
+			Expect(truncRec.Render(&truncBuf)).To(Succeed())
+			truncImg, err := png.Decode(&truncBuf)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Truncated image should be significantly shorter
+			Expect(truncImg.Bounds().Dy()).To(BeNumerically("<", fullImg.Bounds().Dy()))
+		})
+
+		It("should have no effect when content is within maxRows", func() {
+			rec := termshot.NewRecorder(termshot.WithColumns(80), termshot.WithMaxRows(50))
+			for i := 1; i <= 5; i++ {
+				_, _ = fmt.Fprintf(rec, "line %d\n", i)
+			}
+
+			var buf bytes.Buffer
+			Expect(rec.Render(&buf)).To(Succeed())
+			img, err := png.Decode(&buf)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Bounds().Dy()).To(BeNumerically(">", 0))
+		})
+
+		It("should have no effect when maxRows is zero", func() {
+			rec := termshot.NewRecorder(termshot.WithColumns(80), termshot.WithMaxRows(0))
+			for i := 1; i <= 20; i++ {
+				_, _ = fmt.Fprintf(rec, "line %d\n", i)
+			}
+
+			var buf bytes.Buffer
+			Expect(rec.Render(&buf)).To(Succeed())
+			Expect(buf.Len()).To(BeNumerically(">", 0))
+		})
+	})
+
 	Context("options passthrough", func() {
 		It("should pass options through to Render", func() {
 			narrowRec := termshot.NewRecorder(termshot.WithColumns(20))
