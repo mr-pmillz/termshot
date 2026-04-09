@@ -29,7 +29,6 @@ import (
 	"math"
 	"os"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/esimov/stackblur-go"
 	"github.com/fogleman/gg"
@@ -37,6 +36,7 @@ import (
 	"github.com/gonvenience/bunt"
 	"github.com/gonvenience/font"
 	"github.com/gonvenience/term"
+	"github.com/mattn/go-runewidth"
 	imgfont "golang.org/x/image/font"
 )
 
@@ -93,10 +93,11 @@ type Scaffold struct {
 	padding float64
 	margin  float64
 
-	regular    imgfont.Face
-	bold       imgfont.Face
-	italic     imgfont.Face
-	boldItalic imgfont.Face
+	regular       imgfont.Face
+	bold          imgfont.Face
+	italic        imgfont.Face
+	boldItalic    imgfont.Face
+	emojiFallback *emojiFallbackFont
 
 	tabSpaces int
 
@@ -130,10 +131,11 @@ func NewImageCreator() Scaffold {
 		shadowOffsetX: f * 16,
 		shadowOffsetY: f * 16,
 
-		regular:    font.Hack.Regular(fontFaceOptions),
-		bold:       font.Hack.Bold(fontFaceOptions),
-		italic:     font.Hack.Italic(fontFaceOptions),
-		boldItalic: font.Hack.BoldItalic(fontFaceOptions),
+		regular:       font.Hack.Regular(fontFaceOptions),
+		bold:          font.Hack.Bold(fontFaceOptions),
+		italic:        font.Hack.Italic(fontFaceOptions),
+		boldItalic:    font.Hack.BoldItalic(fontFaceOptions),
+		emojiFallback: newEmojiFallback(f*defaultFontSize, defaultFontDPI),
 
 		tabSpaces: 2,
 	}
@@ -182,6 +184,8 @@ func (s *Scaffold) SetFont(family FontFamily) {
 		s.italic = font.Hack.Italic(fontFaceOptions)
 		s.boldItalic = font.Hack.BoldItalic(fontFaceOptions)
 	}
+
+	s.emojiFallback = newEmojiFallback(s.factor*defaultFontSize, defaultFontDPI)
 }
 
 func (s *Scaffold) effectiveBGColor() string {
@@ -248,7 +252,7 @@ func (s *Scaffold) AddCommand(args ...string) error {
 			}
 			lineCols = 0
 		} else {
-			lineCols++
+			lineCols += runewidth.RuneWidth(cr.Symbol)
 		}
 	}
 	if lineCols > s.commandMaxCols {
@@ -278,7 +282,7 @@ func (s *Scaffold) AddContent(in io.Reader) error {
 	var tmp bunt.String
 	var counter int
 	for _, cr := range *parsed {
-		counter++
+		counter += runewidth.RuneWidth(cr.Symbol)
 
 		if cr.Symbol == '\n' {
 			counter = 0
@@ -322,7 +326,7 @@ func (s *Scaffold) measureContent() (width float64, height float64) {
 	switch s.columns {
 	case 0: // unlimited: max width of all lines
 		for _, line := range lines {
-			lineWidth := float64(utf8.RuneCountInString(line)) * cellWidth
+			lineWidth := float64(runewidth.StringWidth(line)) * cellWidth
 			if lineWidth > width {
 				width = lineWidth
 			}
@@ -418,19 +422,26 @@ func (s *Scaffold) image() (image.Image, error) {
 	// Convert fixed point to floating point
 	ascent := float64(s.regular.Metrics().Ascent) / (1 << 6)
 	for _, cr := range s.content {
+		var activeFace imgfont.Face
 		switch cr.Settings & 0x1C {
 		case 4:
-			dc.SetFontFace(s.bold)
-
+			activeFace = s.bold
 		case 8:
-			dc.SetFontFace(s.italic)
-
+			activeFace = s.italic
 		case 12:
-			dc.SetFontFace(s.boldItalic)
-
+			activeFace = s.boldItalic
 		default:
-			dc.SetFontFace(s.regular)
+			activeFace = s.regular
 		}
+
+		// Fall back to the emoji font when it has a glyph for this rune.
+		// We check the emoji font first because the primary face (freetype)
+		// always returns ok=true from GlyphBounds, even for missing glyphs.
+		if s.emojiFallback.hasGlyph(cr.Symbol) {
+			activeFace = s.emojiFallback.face
+		}
+
+		dc.SetFontFace(activeFace)
 
 		str := string(cr.Symbol)
 
@@ -443,7 +454,8 @@ func (s *Scaffold) image() (image.Image, error) {
 				int((cr.Settings>>48)&0xFF), // #nosec G115
 			)
 
-			dc.DrawRectangle(x, y, w, h)
+			rw := float64(runewidth.RuneWidth(cr.Symbol))
+			dc.DrawRectangle(x, y, w*rw, h)
 			dc.Fill()
 		}
 
@@ -474,17 +486,28 @@ func (s *Scaffold) image() (image.Image, error) {
 			str = "×"
 		}
 
-		dc.DrawString(str, x, y+ascent)
+		// Prefer color emoji sprites; fall back to font rendering
+		if sprite, ok := emojiSprite(cr.Symbol); ok {
+			rw := float64(runewidth.RuneWidth(cr.Symbol))
+			if rw < 1 {
+				rw = 1
+			}
+			scaled := scaleImage(sprite, int(w*rw), int(h))
+			dc.DrawImage(scaled, int(x), int(y))
+		} else {
+			dc.DrawString(str, x, y+ascent)
+		}
 
 		// There seems to be no font face based way to do an underlined
 		// string, therefore manually draw a line under each character
 		if cr.Settings&0x1C == 16 {
-			dc.DrawLine(x, y+h, x+w, y+h)
+			rw := float64(runewidth.RuneWidth(cr.Symbol))
+			dc.DrawLine(x, y+h, x+w*rw, y+h)
 			dc.SetLineWidth(f(1))
 			dc.Stroke()
 		}
 
-		x += w
+		x += w * float64(runewidth.RuneWidth(cr.Symbol))
 	}
 
 	// Optional: Draw a highlight box around the command line(s)
@@ -594,7 +617,7 @@ func (s *Scaffold) ColumnsUsed() int {
 			current = 0
 			continue
 		}
-		current++
+		current += runewidth.RuneWidth(cr.Symbol)
 	}
 	if current > maxCols {
 		maxCols = current

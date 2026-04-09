@@ -2,6 +2,7 @@ dist
 **/*.coverprofile
 /termshot
 *.png
+!internal/img/twemoji/*.png
 *.svg
 *.jpg
 *.jpeg
