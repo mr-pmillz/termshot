@@ -36,7 +36,6 @@ import (
 	"github.com/gonvenience/bunt"
 	"github.com/gonvenience/font"
 	"github.com/gonvenience/term"
-	"github.com/mattn/go-runewidth"
 	imgfont "golang.org/x/image/font"
 )
 
@@ -101,11 +100,10 @@ type Scaffold struct {
 
 	tabSpaces int
 
-	commandLineCount int
-	commandMaxCols   int
 	highlightCommand bool
 	highlightColor   string
 	highlightTight   bool
+	commandRanges    []contentRange
 }
 
 func NewImageCreator() Scaffold {
@@ -243,21 +241,10 @@ func (s *Scaffold) AddCommand(args ...string) error {
 		return err
 	}
 
-	var lineCols int
-	for _, cr := range s.content[before:] {
-		if cr.Symbol == '\n' {
-			s.commandLineCount++
-			if lineCols > s.commandMaxCols {
-				s.commandMaxCols = lineCols
-			}
-			lineCols = 0
-		} else {
-			lineCols += runewidth.RuneWidth(cr.Symbol)
-		}
-	}
-	if lineCols > s.commandMaxCols {
-		s.commandMaxCols = lineCols
-	}
+	s.commandRanges = append(s.commandRanges, contentRange{
+		start: before,
+		end:   len(s.content),
+	})
 
 	return nil
 }
@@ -279,65 +266,21 @@ func (s *Scaffold) AddContent(in io.Reader) error {
 		return fmt.Errorf("failed to parse input stream: %w", err)
 	}
 
-	var tmp bunt.String
-	var counter int
-	for _, cr := range *parsed {
-		counter += runewidth.RuneWidth(cr.Symbol)
-
-		if cr.Symbol == '\n' {
-			counter = 0
-		}
-
-		// Add an additional newline in case the column
-		// count is reached and line wrapping is needed
-		if counter > s.GetFixedColumns() {
-			counter = 0
-			tmp = append(tmp, bunt.ColoredRune{
-				Settings: cr.Settings,
-				Symbol:   '\n',
-			})
-		}
-
-		tmp = append(tmp, cr)
-	}
-
-	s.content = append(s.content, tmp...)
+	s.content = append(s.content, (*parsed)...)
 
 	return nil
 }
 
-func (s *Scaffold) measureContent() (width float64, height float64) {
-	var tmp = make([]rune, len(s.content))
-	for i, cr := range s.content {
-		tmp[i] = cr.Symbol
-	}
-
-	lines := strings.Split(
-		strings.TrimSuffix(
-			string(tmp),
-			"\n",
-		),
-		"\n",
-	)
-
+func (s *Scaffold) measureContent(layout contentLayout) (width float64, height float64) {
 	cellWidth, cellHeight := s.cellSize()
 
-	// width, either by using longest line, or by fixed column value
-	switch s.columns {
-	case 0: // unlimited: max width of all lines
-		for _, line := range lines {
-			lineWidth := float64(runewidth.StringWidth(line)) * cellWidth
-			if lineWidth > width {
-				width = lineWidth
-			}
-		}
-
-	default: // fixed: max width based on column count
+	if s.columns > 0 {
 		width = float64(s.GetFixedColumns()) * cellWidth
+	} else {
+		width = float64(layout.MaxCols) * cellWidth
 	}
 
-	// height, lines times font height and line spacing
-	height = float64(len(lines)) * cellHeight
+	height = float64(len(layout.Rows)) * cellHeight
 
 	return width, height
 }
@@ -351,7 +294,8 @@ func (s *Scaffold) image() (image.Image, error) {
 		distance = f(25)
 	)
 
-	contentWidth, contentHeight := s.measureContent()
+	layout := s.layout()
+	contentWidth, contentHeight := s.measureContent(layout)
 
 	// Make sure the output window is big enough in case no content or very few
 	// content will be rendered
@@ -416,122 +360,139 @@ func (s *Scaffold) image() (image.Image, error) {
 	}
 
 	// Apply the actual text into the prepared content area of the window
-	var x, y = xOffset + paddingX, yOffset + paddingY + titleOffset
+	var xBase, yBase = xOffset + paddingX, yOffset + paddingY + titleOffset
 	w, h := s.cellSize()
-
-	// Convert fixed point to floating point
-	ascent := float64(s.regular.Metrics().Ascent) / (1 << 6)
-	for _, cr := range s.content {
-		var activeFace imgfont.Face
-		switch cr.Settings & 0x1C {
-		case 4:
-			activeFace = s.bold
-		case 8:
-			activeFace = s.italic
-		case 12:
-			activeFace = s.boldItalic
-		default:
-			activeFace = s.regular
-		}
-
-		// Fall back to the emoji font when it has a glyph for this rune.
-		// We check the emoji font first because the primary face (freetype)
-		// always returns ok=true from GlyphBounds, even for missing glyphs.
-		if s.emojiFallback.hasGlyph(cr.Symbol) {
-			activeFace = s.emojiFallback.face
-		}
-
-		dc.SetFontFace(activeFace)
-
-		str := string(cr.Symbol)
-
-		// background color
-		switch cr.Settings & 0x02 { //nolint:gocritic
-		case 2:
-			dc.SetRGB255(
-				int((cr.Settings>>32)&0xFF), // #nosec G115
-				int((cr.Settings>>40)&0xFF), // #nosec G115
-				int((cr.Settings>>48)&0xFF), // #nosec G115
-			)
-
-			rw := float64(runewidth.RuneWidth(cr.Symbol))
-			dc.DrawRectangle(x, y, w*rw, h)
-			dc.Fill()
-		}
-
-		// foreground color
-		switch cr.Settings & 0x01 {
-		case 1:
-			dc.SetRGB255(
-				int((cr.Settings>>8)&0xFF),  // #nosec G115
-				int((cr.Settings>>16)&0xFF), // #nosec G115
-				int((cr.Settings>>24)&0xFF), // #nosec G115
-			)
-
-		default:
-			dc.SetColor(s.effectiveFGColor())
-		}
-
-		switch str {
-		case "\n":
-			x = xOffset + paddingX
-			y += math.Floor(h)
-			continue
-
-		case "\t":
-			x += w * float64(s.tabSpaces)
-			continue
-
-		case "✗", "ˣ": // mitigate issue #1 by replacing it with a similar character
-			str = "×"
-		}
-
-		// Prefer color emoji sprites; fall back to font rendering
-		if sprite, ok := emojiSprite(cr.Symbol); ok {
-			rw := float64(runewidth.RuneWidth(cr.Symbol))
-			if rw < 1 {
-				rw = 1
+	for rowIndex, row := range layout.Rows {
+		x := xBase
+		y := yBase + float64(rowIndex)*h
+		for _, segment := range row.Segments {
+			if segment.Kind == segmentTab {
+				x += w * float64(segment.Width)
+				continue
 			}
-			scaled := scaleImage(sprite, int(w*rw), int(h))
-			dc.DrawImage(scaled, int(x), int(y))
-		} else {
-			dc.DrawString(str, x, y+ascent)
-		}
 
-		// There seems to be no font face based way to do an underlined
-		// string, therefore manually draw a line under each character
-		if cr.Settings&0x1C == 16 {
-			rw := float64(runewidth.RuneWidth(cr.Symbol))
-			dc.DrawLine(x, y+h, x+w*rw, y+h)
-			dc.SetLineWidth(f(1))
-			dc.Stroke()
-		}
+			segmentWidth := float64(segment.Width)
 
-		x += w * float64(runewidth.RuneWidth(cr.Symbol))
+			switch segment.Settings & 0x02 { //nolint:gocritic
+			case 2:
+				dc.SetRGB255(
+					int((segment.Settings>>32)&0xFF), // #nosec G115
+					int((segment.Settings>>40)&0xFF), // #nosec G115
+					int((segment.Settings>>48)&0xFF), // #nosec G115
+				)
+
+				dc.DrawRectangle(x, y, w*segmentWidth, h)
+				dc.Fill()
+			}
+
+			switch segment.Settings & 0x01 {
+			case 1:
+				dc.SetRGB255(
+					int((segment.Settings>>8)&0xFF),  // #nosec G115
+					int((segment.Settings>>16)&0xFF), // #nosec G115
+					int((segment.Settings>>24)&0xFF), // #nosec G115
+				)
+
+			default:
+				dc.SetColor(s.effectiveFGColor())
+			}
+
+			text := renderText(segment.Text)
+			if sprite, ok := emojiSprite(text); ok {
+				drawWidth := int(w * segmentWidth)
+				if drawWidth < 1 {
+					drawWidth = 1
+				}
+
+				scaled := scaleImage(text, sprite, drawWidth, int(h))
+				dc.DrawImage(scaled, int(x), int(y))
+			} else {
+				activeFace := s.textFace(segment.Settings, text)
+				dc.SetFontFace(activeFace)
+				ascent := float64(activeFace.Metrics().Ascent) / (1 << 6)
+				dc.DrawString(text, x, y+ascent)
+			}
+
+			if segment.Settings&0x1C == 16 {
+				dc.DrawLine(x, y+h, x+w*segmentWidth, y+h)
+				dc.SetLineWidth(f(1))
+				dc.Stroke()
+			}
+
+			x += w * segmentWidth
+		}
 	}
 
 	// Optional: Draw a highlight box around the command line(s)
-	if s.highlightCommand && s.commandLineCount > 0 {
-		boxColor := s.highlightColor
-		if boxColor == "" {
-			boxColor = "#FF0000"
-		}
-		boxPad := f(4)
-		boxX := xOffset + paddingX - boxPad
-		boxY := yOffset + paddingY + titleOffset - boxPad
-		boxW := contentWidth + 2*boxPad
-		if s.highlightTight && s.commandMaxCols > 0 {
-			boxW = float64(s.commandMaxCols)*w + 2*boxPad
-		}
-		boxH := float64(s.commandLineCount)*h + 2*boxPad
+	if s.highlightCommand {
+		commandRows, commandMaxCols := layout.commandBox()
+		if commandRows > 0 {
+			boxColor := s.highlightColor
+			if boxColor == "" {
+				boxColor = "#FF0000"
+			}
+			boxPad := f(4)
+			boxX := xOffset + paddingX - boxPad
+			boxY := yOffset + paddingY + titleOffset - boxPad
+			boxW := contentWidth + 2*boxPad
+			if s.highlightTight && commandMaxCols > 0 {
+				boxW = float64(commandMaxCols)*w + 2*boxPad
+			}
+			boxH := float64(commandRows)*h + 2*boxPad
 
-		dc.SetHexColor(boxColor)
-		dc.SetLineWidth(f(2))
-		dc.DrawRoundedRectangle(boxX, boxY, boxW, boxH, f(3))
-		dc.Stroke()
+			dc.SetHexColor(boxColor)
+			dc.SetLineWidth(f(2))
+			dc.DrawRoundedRectangle(boxX, boxY, boxW, boxH, f(3))
+			dc.Stroke()
+		}
 	}
 
 	return dc.Image(), nil
+}
+
+func (layout contentLayout) commandBox() (rows int, maxCols int) {
+	for _, row := range layout.Rows {
+		if !row.HasCommand {
+			if rows > 0 {
+				break
+			}
+			continue
+		}
+
+		rows++
+		if row.Width > maxCols {
+			maxCols = row.Width
+		}
+	}
+
+	return rows, maxCols
+}
+
+func renderText(text string) string {
+	switch text {
+	case "✗", "ˣ":
+		return "×"
+	default:
+		return text
+	}
+}
+
+func (s *Scaffold) textFace(settings uint64, text string) imgfont.Face {
+	baseFace := s.regular
+	switch settings & 0x1C {
+	case 4:
+		baseFace = s.bold
+	case 8:
+		baseFace = s.italic
+	case 12:
+		baseFace = s.boldItalic
+	}
+
+	if shouldUseEmojiFallback(text, s.emojiFallback) {
+		return s.emojiFallback.face
+	}
+
+	return baseFace
 }
 
 func (s *Scaffold) cellSize() (float64, float64) {
@@ -605,24 +566,10 @@ func (s *Scaffold) WritePNG(w io.Writer) error {
 	return png.Encode(w, img)
 }
 
-// ColumnsUsed returns the maximum number of columns (runes) used across
-// all lines in the current content. Call after AddContent.
+// ColumnsUsed returns the maximum rendered columns used across all rows in the
+// current content. Call after AddContent.
 func (s *Scaffold) ColumnsUsed() int {
-	var maxCols, current int
-	for _, cr := range s.content {
-		if cr.Symbol == '\n' {
-			if current > maxCols {
-				maxCols = current
-			}
-			current = 0
-			continue
-		}
-		current += runewidth.RuneWidth(cr.Symbol)
-	}
-	if current > maxCols {
-		maxCols = current
-	}
-	return maxCols
+	return s.layout().MaxCols
 }
 
 // WriteRaw writes the scaffold content as-is into the provided writer

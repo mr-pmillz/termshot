@@ -21,11 +21,14 @@
 package img
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"image"
 	"image/png"
+	"strconv"
 	"strings"
+	"sync"
 
 	"golang.org/x/image/draw"
 )
@@ -36,25 +39,91 @@ import (
 //go:embed twemoji/*.png
 var twemojiFS embed.FS
 
-// emojiSprite looks up a color emoji sprite for the given rune. Returns the
+type emojiSpriteEntry struct {
+	image image.Image
+	ok    bool
+}
+
+var (
+	emojiSpriteCache sync.Map
+	emojiScaleCache  sync.Map
+)
+
+// emojiSprite looks up a color emoji sprite for the given grapheme cluster. Returns the
 // decoded image and true if a sprite exists, or nil and false otherwise.
-func emojiSprite(r rune) (image.Image, bool) {
-	name := fmt.Sprintf("twemoji/%x.png", r)
-	data, err := twemojiFS.ReadFile(name)
-	if err != nil {
+func emojiSprite(text string) (image.Image, bool) {
+	if !isLikelyEmojiCluster(text) {
 		return nil, false
 	}
-	img, err := png.Decode(strings.NewReader(string(data)))
+
+	for _, key := range emojiSpriteKeys(text) {
+		if sprite, ok := loadEmojiSprite(key); ok {
+			return sprite, true
+		}
+	}
+
+	return nil, false
+}
+
+func loadEmojiSprite(key string) (image.Image, bool) {
+	if cached, ok := emojiSpriteCache.Load(key); ok {
+		entry := cached.(emojiSpriteEntry)
+		return entry.image, entry.ok
+	}
+
+	data, err := twemojiFS.ReadFile(fmt.Sprintf("twemoji/%s.png", key))
 	if err != nil {
+		emojiSpriteCache.Store(key, emojiSpriteEntry{ok: false})
 		return nil, false
 	}
+
+	img, err := png.Decode(bytes.NewReader(data))
+	if err != nil {
+		emojiSpriteCache.Store(key, emojiSpriteEntry{ok: false})
+		return nil, false
+	}
+
+	emojiSpriteCache.Store(key, emojiSpriteEntry{image: img, ok: true})
 	return img, true
+}
+
+func emojiSpriteKeys(text string) []string {
+	if text == "" {
+		return nil
+	}
+
+	exact := emojiSpriteKey(text, false)
+	withoutVS16 := emojiSpriteKey(text, true)
+	if exact == withoutVS16 {
+		return []string{exact}
+	}
+
+	return []string{exact, withoutVS16}
+}
+
+func emojiSpriteKey(text string, stripVS16 bool) string {
+	parts := make([]string, 0, len(text))
+	for _, r := range text {
+		if stripVS16 && r == '\uFE0F' {
+			continue
+		}
+
+		parts = append(parts, strconv.FormatInt(int64(r), 16))
+	}
+
+	return strings.Join(parts, "-")
 }
 
 // scaleImage resizes src to the given width and height using high-quality
 // Catmull-Rom interpolation.
-func scaleImage(src image.Image, width, height int) image.Image {
+func scaleImage(key string, src image.Image, width, height int) image.Image {
+	cacheKey := fmt.Sprintf("%s/%dx%d", key, width, height)
+	if cached, ok := emojiScaleCache.Load(cacheKey); ok {
+		return cached.(image.Image)
+	}
+
 	dst := image.NewRGBA(image.Rect(0, 0, width, height))
 	draw.CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
+	emojiScaleCache.Store(cacheKey, dst)
 	return dst
 }

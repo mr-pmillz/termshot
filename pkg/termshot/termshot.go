@@ -36,16 +36,16 @@ import (
 )
 
 type config struct {
-	columns     int
-	margin      *int
-	padding     *int
-	decorations *bool
-	shadow      *bool
-	clipCanvas  *bool
-	targetWidth int
-	command     []string
-	tmux        bool
-	tmuxPane    string
+	columns          int
+	margin           *int
+	padding          *int
+	decorations      *bool
+	shadow           *bool
+	clipCanvas       *bool
+	targetWidth      int
+	command          []string
+	tmux             bool
+	tmuxPane         string
 	light            bool
 	bgColor          *string
 	fgColor          *string
@@ -151,28 +151,12 @@ func Render(w io.Writer, r io.Reader, opts ...Option) error {
 		content = r
 	}
 
-	// Truncate content to the first N lines when maxRows is set.
-	// This prevents OOM when capturing long-running commands that
-	// produce thousands of lines (e.g. large port scans, email
-	// enumeration). Only the first N lines are rendered; a
-	// truncation notice is appended when lines are dropped.
-	if cfg.maxRows != nil && *cfg.maxRows > 0 {
-		data, err := io.ReadAll(content)
-		if err != nil {
-			return fmt.Errorf("failed to read content for row limiting: %w", err)
-		}
-		lines := bytes.Split(data, []byte("\n"))
-		if len(lines) > *cfg.maxRows {
-			kept := lines[:*cfg.maxRows]
-			footer := fmt.Sprintf("\n... [%d lines truncated] ...", len(lines)-*cfg.maxRows)
-			content = io.MultiReader(bytes.NewReader(bytes.Join(kept, []byte("\n"))), bytes.NewReader([]byte(footer)))
-		} else {
-			content = bytes.NewReader(data)
-		}
-	}
-
 	if err := scaffold.AddContent(content); err != nil {
 		return fmt.Errorf("failed to add content: %w", err)
+	}
+
+	if cfg.maxRows != nil && *cfg.maxRows > 0 {
+		scaffold.LimitRenderedRows(*cfg.maxRows)
 	}
 
 	if !cfg.quiet {

@@ -3,6 +3,7 @@ module github.com/mr-pmillz/termshot
 go 1.25.0
 
 require (
+	github.com/clipperhouse/uax29/v2 v2.2.0
 	github.com/creack/pty v1.1.24
 	github.com/esimov/stackblur-go v1.1.1
 	github.com/fogleman/gg v1.3.0
@@ -23,7 +24,6 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
-	github.com/clipperhouse/uax29/v2 v2.2.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect

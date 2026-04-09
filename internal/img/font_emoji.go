@@ -22,6 +22,7 @@ package img
 
 import (
 	_ "embed"
+	"sync"
 
 	imgfont "golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -35,6 +36,12 @@ import (
 
 //go:embed fonts/NotoEmoji/NotoEmoji.ttf
 var notoEmojiRegular []byte
+
+var (
+	notoEmojiOnce sync.Once
+	notoEmojiFont *sfnt.Font
+	notoEmojiErr  error
+)
 
 // emojiFallbackFont holds the parsed sfnt.Font for glyph-index lookups and
 // the rendered font.Face for drawing. We need both because freetype/truetype
@@ -55,8 +62,16 @@ func (e *emojiFallbackFont) hasGlyph(r rune) bool {
 	return err == nil && idx != 0
 }
 
+func loadNotoEmojiFont() (*sfnt.Font, error) {
+	notoEmojiOnce.Do(func() {
+		notoEmojiFont, notoEmojiErr = opentype.Parse(notoEmojiRegular)
+	})
+
+	return notoEmojiFont, notoEmojiErr
+}
+
 func newEmojiFallback(size, dpi float64) *emojiFallbackFont {
-	f, err := opentype.Parse(notoEmojiRegular)
+	f, err := loadNotoEmojiFont()
 	if err != nil {
 		panic("failed to parse embedded Noto Emoji font: " + err.Error())
 	}
@@ -68,4 +83,63 @@ func newEmojiFallback(size, dpi float64) *emojiFallbackFont {
 		panic("failed to create Noto Emoji font face: " + err.Error())
 	}
 	return &emojiFallbackFont{font: f, face: face}
+}
+
+func shouldUseEmojiFallback(text string, fallback *emojiFallbackFont) bool {
+	if fallback == nil {
+		return false
+	}
+
+	runes := []rune(text)
+	if len(runes) != 1 {
+		return false
+	}
+
+	return isEmojiRune(runes[0]) && fallback.hasGlyph(runes[0])
+}
+
+func isLikelyEmojiCluster(text string) bool {
+	if text == "" {
+		return false
+	}
+
+	hasEmojiBase := false
+	hasKeycapBase := false
+	for _, r := range text {
+		switch {
+		case isEmojiRune(r):
+			hasEmojiBase = true
+		case isKeycapBase(r):
+			hasKeycapBase = true
+		case r == '\u200D' || r == '\uFE0F' || r == '\u20E3':
+			if r == '\u20E3' && !hasKeycapBase {
+				return false
+			}
+			if r == '\u20E3' {
+				hasEmojiBase = true
+			}
+		case r >= 0x1F3FB && r <= 0x1F3FF:
+		default:
+			return false
+		}
+	}
+
+	return hasEmojiBase
+}
+
+func isKeycapBase(r rune) bool {
+	return (r >= '0' && r <= '9') || r == '#' || r == '*'
+}
+
+func isEmojiRune(r rune) bool {
+	switch {
+	case r == 0x00A9 || r == 0x00AE:
+		return true
+	case r >= 0x203C && r <= 0x3299:
+		return true
+	case r >= 0x1F000 && r <= 0x1FAFF:
+		return true
+	default:
+		return false
+	}
 }

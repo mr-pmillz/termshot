@@ -26,6 +26,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/gonvenience/bunt"
@@ -166,7 +167,7 @@ var _ = Describe("Recorder", func() {
 	})
 
 	Context("WithMaxRows", func() {
-		It("should truncate output to last N lines when content exceeds maxRows", func() {
+		It("should truncate output rows when content exceeds maxRows", func() {
 			rec := termshot.NewRecorder(termshot.WithColumns(80), termshot.WithMaxRows(5))
 			for i := 1; i <= 100; i++ {
 				_, _ = fmt.Fprintf(rec, "line %d\n", i)
@@ -217,6 +218,26 @@ var _ = Describe("Recorder", func() {
 			img, err := png.Decode(&buf)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(img.Bounds().Dy()).To(BeNumerically(">", 0))
+		})
+
+		It("should cap wrapped single-line output by rendered rows", func() {
+			longLine := strings.Repeat("x", 200)
+
+			fullRec := termshot.NewRecorder(termshot.WithColumns(20))
+			_, _ = fmt.Fprint(fullRec, longLine)
+			var fullBuf bytes.Buffer
+			Expect(fullRec.Render(&fullBuf)).To(Succeed())
+			fullImg, err := png.Decode(&fullBuf)
+			Expect(err).ToNot(HaveOccurred())
+
+			truncRec := termshot.NewRecorder(termshot.WithColumns(20), termshot.WithMaxRows(3))
+			_, _ = fmt.Fprint(truncRec, longLine)
+			var truncBuf bytes.Buffer
+			Expect(truncRec.Render(&truncBuf)).To(Succeed())
+			truncImg, err := png.Decode(&truncBuf)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(truncImg.Bounds().Dy()).To(BeNumerically("<", fullImg.Bounds().Dy()))
 		})
 
 		It("should have no effect when maxRows is zero", func() {
